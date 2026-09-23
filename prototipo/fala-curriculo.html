@@ -1,0 +1,2043 @@
+<!DOCTYPE html>
+<!--
+  Trabalho: Sistema de Apoio para Geração Automatizada de Currículo Utilizando Inteligência Artificial
+  Integrantes:
+  Otto Enoc Hermano Smelan de Oliveira - 10402128
+  Eduardo Figueira Losco - 10416650
+-->
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Fala Currículo</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Atkinson+Hyperlegible:ital,wght@0,400;0,700;1,400&display=swap" rel="stylesheet">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+<style>
+:root{
+  --areia:#FBF3E4; --areia-fundo:#F3E8D2; --papel:#FFFFFF;
+  --tinta:#17242B; --tinta-fraca:#54646E; --borda:#E3D6BE;
+  --azul:#17457E; --azul-bg:#17457E; --azul-fg:#FFFFFF; --azul-suave:#E7F0FB;
+  --verde:#1E6B45; --verde-bg:#1E6B45; --verde-fg:#FFFFFF; --verde-suave:#E4F2EA;
+  --vermelho:#BE3C2E; --vermelho-bg:#BE3C2E; --vermelho-fg:#FFFFFF; --vermelho-suave:#FBE9E6;
+  --ambar:#E2932B; --ambar-suave:#FDF0D8;
+  --sombra:0 2px 0 rgba(23,36,43,.08), 0 8px 24px rgba(23,36,43,.07);
+  --raio:20px; --raio-g:28px;
+}
+@media (prefers-color-scheme: dark){
+  :root:not([data-theme="light"]){
+    --areia:#15171B; --areia-fundo:#101216; --papel:#1F232A;
+    --tinta:#F3EEE4; --tinta-fraca:#A7B2BB; --borda:#343A43;
+    --azul:#7FB2F2; --azul-bg:#2B62A8; --azul-fg:#FFFFFF; --azul-suave:#1B2A3D;
+    --verde:#6ECB9C; --verde-bg:#2A7E55; --verde-fg:#FFFFFF; --verde-suave:#16291F;
+    --vermelho:#F08A7C; --vermelho-bg:#C24A3B; --vermelho-fg:#FFFFFF; --vermelho-suave:#2E1C19;
+    --ambar:#EFB458; --ambar-suave:#2B2214;
+    --sombra:0 2px 0 rgba(0,0,0,.3), 0 8px 24px rgba(0,0,0,.35);
+  }
+}
+:root[data-theme="dark"]{
+  --areia:#15171B; --areia-fundo:#101216; --papel:#1F232A;
+  --tinta:#F3EEE4; --tinta-fraca:#A7B2BB; --borda:#343A43;
+  --azul:#7FB2F2; --azul-bg:#2B62A8; --azul-fg:#FFFFFF; --azul-suave:#1B2A3D;
+  --verde:#6ECB9C; --verde-bg:#2A7E55; --verde-fg:#FFFFFF; --verde-suave:#16291F;
+  --vermelho:#F08A7C; --vermelho-bg:#C24A3B; --vermelho-fg:#FFFFFF; --vermelho-suave:#2E1C19;
+  --ambar:#EFB458; --ambar-suave:#2B2214;
+  --sombra:0 2px 0 rgba(0,0,0,.3), 0 8px 24px rgba(0,0,0,.35);
+}
+
+*{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+html,body{height:100%}
+body{
+  margin:0;background:var(--areia-fundo);color:var(--tinta);
+  font-family:"Atkinson Hyperlegible","Verdana","Segoe UI",system-ui,sans-serif;
+  font-size:clamp(18px,4.4vw,21px);line-height:1.5;-webkit-font-smoothing:antialiased;
+}
+.app{min-height:100dvh;display:flex;flex-direction:column;align-items:center}
+.barra{width:100%;max-width:720px;display:flex;align-items:center;gap:10px;padding:14px 16px 6px}
+.barra .marca{font-weight:700;letter-spacing:-.01em;font-size:17px;color:var(--tinta-fraca);margin-right:auto;display:flex;align-items:center;gap:8px}
+.barra .marca svg{width:20px;height:20px}
+.icon-btn{border:2px solid var(--borda);background:var(--papel);color:var(--tinta);width:52px;height:52px;border-radius:16px;display:grid;place-items:center;cursor:pointer;transition:transform .15s ease,border-color .15s ease}
+.icon-btn:hover{border-color:var(--azul)}
+.icon-btn:active{transform:scale(.94)}
+.icon-btn svg{width:26px;height:26px}
+.icon-btn[aria-pressed="false"]{opacity:.55}
+.palco{position:relative;width:100%;max-width:720px;flex:1;display:flex;padding:0 16px 22px}
+
+.tela{position:relative;width:100%;background:var(--areia);border:2px solid var(--borda);border-radius:var(--raio-g);box-shadow:var(--sombra);padding:clamp(22px,5vw,38px);display:none;flex-direction:column;min-height:min(74dvh,640px)}
+.tela.ativa{display:flex}
+.tela.entra{animation:entra .42s cubic-bezier(.22,.9,.28,1) both}
+.tela.entra-volta{animation:entraVolta .42s cubic-bezier(.22,.9,.28,1) both}
+@keyframes entra{from{opacity:0;transform:translate3d(34px,0,0) scale(.985)}to{opacity:1;transform:none}}
+@keyframes entraVolta{from{opacity:0;transform:translate3d(-34px,0,0) scale(.985)}to{opacity:1;transform:none}}
+.tela > *{animation:sobe .5s cubic-bezier(.22,.9,.28,1) both}
+.tela > *:nth-child(1){animation-delay:.05s}
+.tela > *:nth-child(2){animation-delay:.11s}
+.tela > *:nth-child(3){animation-delay:.17s}
+.tela > *:nth-child(4){animation-delay:.23s}
+.tela > *:nth-child(5){animation-delay:.29s}
+.tela > *:nth-child(6){animation-delay:.34s}
+.tela > *:nth-child(7){animation-delay:.39s}
+@keyframes sobe{from{opacity:0;transform:translate3d(0,14px,0)}to{opacity:1;transform:none}}
+
+.selo{align-self:flex-start;display:inline-flex;align-items:center;gap:9px;background:var(--azul-suave);color:var(--azul);border-radius:999px;padding:9px 16px 9px 12px;font-size:15px;font-weight:700;line-height:1.2;margin-bottom:18px}
+.selo.verde{background:var(--verde-suave);color:var(--verde)}
+.selo.vermelho{background:var(--vermelho-suave);color:var(--vermelho)}
+.selo.ambar{background:var(--ambar-suave);color:var(--ambar)}
+.onda{display:flex;align-items:flex-end;gap:2.5px;height:16px}
+.onda i{width:3px;height:5px;border-radius:2px;background:currentColor;display:block}
+body.falando .onda i{animation:pulsaOnda .7s ease-in-out infinite}
+.onda i:nth-child(2){animation-delay:.1s}
+.onda i:nth-child(3){animation-delay:.2s}
+.onda i:nth-child(4){animation-delay:.3s}
+.onda i:nth-child(5){animation-delay:.15s}
+@keyframes pulsaOnda{0%,100%{height:5px}50%{height:16px}}
+
+h1{font-size:clamp(29px,7.6vw,41px);line-height:1.12;letter-spacing:-.022em;margin:0 0 12px;font-weight:700}
+h1.pergunta{font-size:clamp(31px,8.4vw,46px)}
+.sub{margin:0 0 20px;color:var(--tinta-fraca);font-size:clamp(17px,4.2vw,20px)}
+.tela .cresce{flex:1;min-height:12px;animation:none}
+.obrig{color:var(--vermelho);font-weight:700}
+
+.acoes{display:flex;flex-direction:column;gap:12px;margin-top:20px}
+.btn{width:100%;min-height:70px;border:0;border-radius:var(--raio);font-family:inherit;font-size:clamp(19px,4.7vw,22px);font-weight:700;display:flex;align-items:center;justify-content:center;gap:12px;padding:16px 20px;cursor:pointer;transition:transform .14s ease,filter .14s ease,box-shadow .14s ease;box-shadow:0 3px 0 rgba(0,0,0,.18)}
+.btn svg{width:26px;height:26px;flex:none}
+.btn:hover{filter:brightness(1.07)}
+.btn:active{transform:translateY(3px);box-shadow:0 0 0 rgba(0,0,0,.18)}
+.btn:focus-visible{outline:4px solid var(--ambar);outline-offset:3px}
+.btn--azul{background:var(--azul-bg);color:var(--azul-fg)}
+.btn--verde{background:var(--verde-bg);color:var(--verde-fg)}
+.btn--vermelho{background:var(--vermelho-bg);color:var(--vermelho-fg)}
+.btn--claro{background:var(--papel);color:var(--tinta);border:2px solid var(--borda);box-shadow:0 3px 0 var(--borda)}
+.btn--fantasma{background:transparent;color:var(--azul);box-shadow:none;min-height:58px;text-decoration:underline;text-underline-offset:4px}
+.btn[disabled]{opacity:.42;cursor:not-allowed;filter:grayscale(.4)}
+.btn[disabled]:active{transform:none;box-shadow:0 3px 0 rgba(0,0,0,.18)}
+.btn--mic{position:relative;overflow:hidden}
+.btn--mic::after{content:"";position:absolute;inset:0;border-radius:inherit;box-shadow:0 0 0 0 rgba(190,60,46,.55);animation:pulsaBtn 2.1s ease-out infinite}
+@keyframes pulsaBtn{0%{box-shadow:0 0 0 0 rgba(190,60,46,.5)}70%{box-shadow:0 0 0 18px rgba(190,60,46,0)}100%{box-shadow:0 0 0 0 rgba(190,60,46,0)}}
+
+.cartao{background:var(--papel);border:2px solid var(--borda);border-radius:var(--raio);padding:18px;display:flex;gap:14px;align-items:flex-start;width:100%;text-align:left;font-family:inherit;color:inherit;font-size:inherit;cursor:pointer;transition:border-color .16s ease,transform .16s ease}
+.cartao:hover{border-color:var(--azul)}
+.cartao:active{transform:scale(.985)}
+.cartao--estatico{cursor:default}
+.cartao--estatico:hover{border-color:var(--borda)}
+.cartao .num{flex:none;width:46px;height:46px;border-radius:14px;background:var(--azul-suave);color:var(--azul);display:grid;place-items:center;font-weight:700}
+.cartao .num svg{width:24px;height:24px}
+.cartao b{display:block;font-size:clamp(19px,4.5vw,21px);line-height:1.25}
+.cartao small{display:block;color:var(--tinta-fraca);font-size:16px;line-height:1.4;margin-top:3px}
+.lista{display:flex;flex-direction:column;gap:12px}
+
+.trilho{height:12px;border-radius:99px;background:var(--borda);overflow:hidden;margin-bottom:8px}
+.trilho span{display:block;height:100%;background:var(--azul-bg);border-radius:99px;width:0;transition:width .6s cubic-bezier(.22,.9,.28,1)}
+.passo-txt{font-size:15px;color:var(--tinta-fraca);font-weight:700;margin-bottom:18px}
+
+.secao-item{display:flex;gap:14px;align-items:center;padding:16px 18px;border-radius:var(--raio);border:2px solid var(--borda);background:var(--papel)}
+.secao-item .bolha{flex:none;width:46px;height:46px;border-radius:14px;display:grid;place-items:center;background:var(--areia-fundo);color:var(--tinta-fraca)}
+.secao-item .bolha svg{width:24px;height:24px}
+.secao-item b{display:block;font-size:19px}
+.secao-item small{color:var(--tinta-fraca);font-size:15px}
+.secao-item.pronto{border-color:var(--verde);background:var(--verde-suave)}
+.secao-item.pronto .bolha{background:var(--verde-bg);color:#fff}
+.secao-item.agora{border-color:var(--azul);background:var(--azul-suave);animation:respira 2.2s ease-in-out infinite}
+.secao-item.agora .bolha{background:var(--azul-bg);color:#fff}
+@keyframes respira{0%,100%{transform:scale(1)}50%{transform:scale(1.016)}}
+
+.equalizador{display:flex;align-items:center;justify-content:center;gap:6px;height:92px;margin:14px 0}
+.equalizador i{width:9px;border-radius:99px;background:var(--vermelho);display:block;height:14px}
+body.ouvindo .equalizador i{animation:eq .9s ease-in-out infinite}
+.equalizador i:nth-child(1){animation-delay:0s}
+.equalizador i:nth-child(2){animation-delay:.09s}
+.equalizador i:nth-child(3){animation-delay:.18s}
+.equalizador i:nth-child(4){animation-delay:.27s}
+.equalizador i:nth-child(5){animation-delay:.12s}
+.equalizador i:nth-child(6){animation-delay:.21s}
+.equalizador i:nth-child(7){animation-delay:.05s}
+.equalizador i:nth-child(8){animation-delay:.3s}
+.equalizador i:nth-child(9){animation-delay:.15s}
+@keyframes eq{0%,100%{height:14px}50%{height:82px}}
+
+.ao-vivo{background:var(--papel);border:2px dashed var(--borda);border-radius:var(--raio);padding:18px;min-height:96px;font-size:clamp(19px,4.6vw,22px);color:var(--tinta);line-height:1.45}
+.ao-vivo:empty::before{content:attr(data-vazio);color:var(--tinta-fraca)}
+.citacao{background:var(--azul-suave);border-left:8px solid var(--azul-bg);border-radius:14px;padding:20px 20px 20px 18px;font-size:clamp(21px,5.2vw,26px);line-height:1.38;font-weight:700}
+
+.campo{width:100%;border:2px solid var(--borda);border-radius:var(--raio);background:var(--papel);color:var(--tinta);font-family:inherit;font-size:clamp(19px,4.6vw,22px);line-height:1.45;padding:16px;min-height:112px;resize:vertical}
+.campo:focus{outline:4px solid var(--ambar);outline-offset:2px;border-color:var(--azul)}
+.campo--linha{min-height:auto;resize:none;text-align:center;font-weight:700;letter-spacing:.03em;font-size:clamp(23px,6.4vw,30px);padding:20px 16px}
+.rotulo{font-size:16px;font-weight:700;color:var(--tinta-fraca);margin-bottom:8px;display:block}
+
+.tel-linha{display:flex;gap:12px;align-items:flex-end}
+.tel-linha[hidden]{display:none}
+.tel-bloco{display:flex;flex-direction:column}
+.tel-bloco:first-child{flex:0 0 118px}
+.tel-bloco:last-child{flex:1}
+.tel-bloco span{font-size:15px;font-weight:700;color:var(--tinta-fraca);margin-bottom:6px}
+.exemplo{background:var(--verde-suave);border:2px solid var(--verde);border-radius:var(--raio);padding:16px 18px;margin-bottom:4px}
+.exemplo small{display:block;font-size:15px;font-weight:700;color:var(--verde);margin-bottom:4px}
+.exemplo b{display:block;font-size:clamp(21px,5.4vw,27px);line-height:1.3;font-weight:700;color:var(--tinta)}
+body.modo-ajuda{font-size:clamp(20px,4.8vw,23px)}
+body.modo-ajuda .cartao small{font-size:17px}
+body.modo-ajuda .sub{font-size:clamp(18px,4.6vw,22px)}
+
+.carregando{display:grid;place-items:center;gap:20px;padding:10px 0}
+.pontos{display:flex;gap:10px}
+.pontos i{width:15px;height:15px;border-radius:50%;background:var(--azul-bg);display:block;animation:salta 1.1s ease-in-out infinite}
+.pontos i:nth-child(2){animation-delay:.15s}
+.pontos i:nth-child(3){animation-delay:.3s}
+@keyframes salta{0%,100%{transform:translateY(0);opacity:.45}50%{transform:translateY(-14px);opacity:1}}
+.frase-rotativa{font-size:18px;color:var(--tinta-fraca);text-align:center;min-height:2.6em;animation:piscaSuave 2.6s ease-in-out infinite}
+@keyframes piscaSuave{0%,100%{opacity:.7}50%{opacity:1}}
+
+.cv{background:var(--papel);border:2px solid var(--borda);border-radius:var(--raio);padding:22px;font-size:16px;line-height:1.5;overflow-x:auto}
+.cv h2{margin:0;font-size:24px;letter-spacing:-.02em}
+.cv .cargo{color:var(--azul);font-weight:700;font-size:17px;margin:2px 0 14px}
+.cv h3{margin:18px 0 6px;font-size:14px;font-weight:700;color:var(--verde);border-bottom:2px solid var(--borda);padding-bottom:5px}
+.cv p{margin:0 0 8px}
+.cv .item-t{font-weight:700}
+.cv .item-s{color:var(--tinta-fraca);font-size:15px}
+.cv ul{margin:0;padding-left:20px}
+
+.confete{position:absolute;inset:0;overflow:hidden;pointer-events:none;border-radius:var(--raio-g)}
+.confete i{position:absolute;top:-16px;width:10px;height:16px;border-radius:2px;display:block;animation:cai 2.8s linear forwards}
+@keyframes cai{0%{transform:translateY(-20px) rotate(0);opacity:1}100%{transform:translateY(105vh) rotate(680deg);opacity:0}}
+
+.aviso{background:var(--ambar-suave);border:2px solid var(--ambar);border-radius:16px;padding:14px 16px;font-size:16px;line-height:1.45;display:flex;gap:11px;align-items:flex-start}
+.aviso svg{width:22px;height:22px;flex:none;color:var(--ambar);margin-top:2px}
+.ilustra{display:block;width:100%;max-width:290px;margin:4px auto 16px;height:auto}
+
+.painel{position:fixed;inset:0;background:rgba(10,14,18,.6);display:none;place-items:end center;z-index:50;padding:12px}
+.painel.aberto{display:grid;animation:fade .25s ease both}
+@keyframes fade{from{opacity:0}to{opacity:1}}
+.painel-cx{background:var(--areia);border:2px solid var(--borda);border-radius:var(--raio-g);width:100%;max-width:720px;max-height:82dvh;overflow:auto;padding:20px;animation:sobePainel .3s cubic-bezier(.22,.9,.28,1) both}
+@keyframes sobePainel{from{transform:translateY(28px);opacity:0}to{transform:none;opacity:1}}
+.painel-cx h2{margin:0 0 4px;font-size:22px}
+.painel-cx p{margin:0 0 14px;color:var(--tinta-fraca);font-size:16px}
+.grade{display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:9px}
+.grade button{font-family:inherit;font-size:15px;text-align:left;line-height:1.3;background:var(--papel);border:2px solid var(--borda);color:var(--tinta);border-radius:14px;padding:11px 13px;cursor:pointer;min-height:58px}
+.grade button:hover{border-color:var(--azul)}
+.grade button b{display:block;font-size:12px;color:var(--tinta-fraca);font-weight:700}
+.rodape-nota{max-width:720px;width:100%;padding:0 16px 20px;color:var(--tinta-fraca);font-size:14px;text-align:center}
+
+@media (min-width:820px){
+  body{font-size:20px}
+  .palco{padding-bottom:30px}
+  .tela{padding:44px 52px;min-height:min(72dvh,660px)}
+  .acoes{flex-direction:row;flex-wrap:wrap}
+  .acoes .btn{flex:1 1 220px}
+  .acoes .btn.largura-total{flex-basis:100%}
+}
+@media (prefers-reduced-motion: reduce){
+  *,*::before,*::after{animation-duration:.01ms !important;animation-iteration-count:1 !important;transition-duration:.01ms !important}
+}
+@media print{
+  body{background:#fff}
+  .barra,.acoes,.painel,.rodape-nota,.selo{display:none !important}
+  .tela{border:0;box-shadow:none;padding:0;min-height:0}
+  .cv{border:0;padding:0}
+}
+</style>
+</head>
+<body>
+
+<div class="app">
+  <header class="barra">
+    <span class="marca">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><path d="M4 10v4M8 6v12M12 3v18M16 6v12M20 10v4"/></svg>
+      Fala Currículo
+    </span>
+    <button class="icon-btn" id="btnModo" aria-label="Trocar o jeito de usar" title="Trocar o jeito de usar"><svg id="icoModo" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="8" r="4"/><path d="M4 21a8 8 0 0 1 16 0"/></svg></button>
+    <button class="icon-btn" id="btnSom" aria-pressed="true" aria-label="Ligar ou desligar a voz do app"><svg id="icoSom" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M11 5 6 9H3v6h3l5 4V5z"/><path d="M15.5 8.5a5 5 0 0 1 0 7"/><path d="M18.5 5.5a9 9 0 0 1 0 13"/></svg></button>
+    <button class="icon-btn" id="btnPainel" aria-label="Ver todas as telas"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><rect x="3" y="3" width="7" height="7" rx="2"/><rect x="14" y="3" width="7" height="7" rx="2"/><rect x="3" y="14" width="7" height="7" rx="2"/><rect x="14" y="14" width="7" height="7" rx="2"/></svg></button>
+  </header>
+
+  <main class="palco" id="palco">
+
+    <section class="tela" id="t-inicio" data-titulo="Boas-vindas">
+      <span class="selo"><span class="onda"><i></i><i></i><i></i><i></i><i></i></span> O app está falando com você</span>
+      <h1>Fala Currículo</h1>
+      <p class="sub">O jeito fácil de fazer o seu currículo usando só a sua voz. É de graça e leva poucos minutos.</p>
+      <svg class="ilustra" viewBox="0 0 280 180" role="img" aria-label="Pessoa com capacete de obra ao lado de um currículo">
+        <rect x="10" y="132" width="260" height="14" rx="7" fill="var(--ambar-suave)"/>
+        <rect x="150" y="52" width="92" height="82" rx="8" fill="var(--papel)" stroke="var(--borda)" stroke-width="3"/>
+        <rect x="163" y="68" width="48" height="7" rx="3.5" fill="var(--azul)"/>
+        <rect x="163" y="84" width="66" height="6" rx="3" fill="var(--borda)"/>
+        <rect x="163" y="97" width="58" height="6" rx="3" fill="var(--borda)"/>
+        <rect x="163" y="110" width="40" height="6" rx="3" fill="var(--borda)"/>
+        <circle cx="82" cy="60" r="27" fill="var(--ambar)"/>
+        <path d="M52 56a30 30 0 0 1 60 0z" fill="var(--vermelho)"/>
+        <rect x="46" y="54" width="72" height="9" rx="4.5" fill="var(--vermelho)"/>
+        <path d="M54 132v-28a28 28 0 0 1 56 0v28z" fill="var(--azul)"/>
+        <rect x="70" y="118" width="24" height="8" rx="4" fill="var(--azul-suave)"/>
+      </svg>
+      <div class="cresce"></div>
+      <div class="acoes"><button class="btn btn--azul largura-total" data-ir="t-microfone"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.3" stroke-linecap="round"><rect x="9" y="2" width="6" height="12" rx="3"/><path d="M5 11a7 7 0 0 0 14 0M12 18v4"/></svg>Começar</button></div>
+    </section>
+
+    <section class="tela" id="t-microfone" data-titulo="Permissão do microfone">
+      <span class="selo"><span class="onda"><i></i><i></i><i></i><i></i><i></i></span> Ouça a explicação</span>
+      <h1>Preciso ouvir a sua voz para te ajudar</h1>
+      <p class="sub">Para escrever o que você fala, o app precisa da sua permissão para usar o microfone do aparelho. Ninguém mais escuta.</p>
+      <svg class="ilustra" viewBox="0 0 280 170" role="img" aria-label="Celular com microfone ligado">
+        <rect x="98" y="16" width="84" height="138" rx="16" fill="var(--papel)" stroke="var(--borda)" stroke-width="3"/>
+        <circle cx="140" cy="82" r="34" fill="var(--vermelho-suave)"/>
+        <rect x="132" y="63" width="16" height="30" rx="8" fill="var(--vermelho)"/>
+        <path d="M124 87a16 16 0 0 0 32 0" stroke="var(--vermelho)" stroke-width="5" fill="none" stroke-linecap="round"/>
+        <path d="M140 103v9" stroke="var(--vermelho)" stroke-width="5" stroke-linecap="round"/>
+        <path d="M62 62q-12 20 0 40M46 48q-20 34 0 68" stroke="var(--azul)" stroke-width="5" fill="none" stroke-linecap="round" opacity=".75"/>
+        <path d="M218 62q12 20 0 40M234 48q20 34 0 68" stroke="var(--azul)" stroke-width="5" fill="none" stroke-linecap="round" opacity=".75"/>
+      </svg>
+      <div class="aviso" id="avisoMic" hidden>
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.3" stroke-linecap="round"><circle cx="12" cy="12" r="9"/><path d="M12 8v5M12 16.5v.01"/></svg>
+        <span id="txtAvisoMic"></span>
+      </div>
+      <div class="cresce"></div>
+      <div class="acoes">
+        <button class="btn btn--verde" id="btnPermitir"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"><rect x="9" y="2" width="6" height="12" rx="3"/><path d="M5 11a7 7 0 0 0 14 0M12 18v4"/></svg>Permitir</button>
+        <button class="btn btn--claro" id="btnAgoraNao">Agora não</button>
+      </div>
+    </section>
+
+    <section class="tela" id="t-como" data-titulo="Como funciona">
+      <span class="selo"><span class="onda"><i></i><i></i><i></i><i></i><i></i></span> Ouça como funciona</span>
+      <h1>Como funciona?</h1>
+      <div class="lista">
+        <div class="cartao cartao--estatico"><span class="num">1</span><span><b>Você fala</b><small>Me conte sobre os seus trabalhos. Se preferir, pode escrever.</small></span></div>
+        <div class="cartao cartao--estatico"><span class="num">2</span><span><b>O app repete</b><small>Eu leio de volta para você ver se ficou certo.</small></span></div>
+        <div class="cartao cartao--estatico"><span class="num">3</span><span><b>Currículo pronto</b><small>Seu currículo fica salvo em PDF para enviar ou imprimir.</small></span></div>
+      </div>
+      <div class="cresce"></div>
+      <div class="acoes"><button class="btn btn--azul largura-total" data-ir="t-modo">Começar</button></div>
+    </section>
+
+    <section class="tela" id="t-modo" data-titulo="Sozinho ou com ajuda">
+      <span class="selo"><span class="onda"><i></i><i></i><i></i><i></i><i></i></span> Escolha como prefere</span>
+      <h1>Como prefere usar?</h1>
+      <p class="sub">Isso muda o jeito que o app se comporta. Dá para trocar depois, no botão de pessoa lá em cima.</p>
+      <div class="lista">
+        <button class="cartao" data-modo="sozinho"><span class="num"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><circle cx="12" cy="8" r="4"/><path d="M4 21a8 8 0 0 1 16 0"/></svg></span><span><b>Vou fazer sozinho</b><small>O app fala tudo devagar e o botão de falar fica em primeiro lugar. Se você demorar, eu repito a pergunta sozinho.</small></span></button>
+        <button class="cartao" data-modo="ajuda"><span class="num"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><circle cx="9" cy="8" r="3.4"/><circle cx="17" cy="9" r="2.8"/><path d="M3 20a6 6 0 0 1 12 0M15.5 20a5 5 0 0 1 5.5-4.8"/></svg></span><span><b>Alguém vai me ajudar</b><small>O botão de escrever fica em primeiro lugar, as letras ficam maiores e cada pergunta mostra um exemplo na tela. A voz fala menos.</small></span></button>
+      </div>
+      <div class="cresce"></div>
+      <div class="acoes"><button class="btn btn--fantasma" data-voltar="t-como">Voltar</button></div>
+    </section>
+
+    <section class="tela" id="t-pergunta" data-titulo="Pergunta">
+      <span class="selo"><span class="onda"><i></i><i></i><i></i><i></i><i></i></span> <span id="seloPergunta">Falando com você</span></span>
+      <div class="trilho"><span id="barraP"></span></div>
+      <div class="passo-txt" id="passoP">Dados Pessoais</div>
+      <h1 class="pergunta" id="txtPergunta">Qual é o seu nome completo?</h1>
+      <p class="sub" id="ajudaPergunta">Fale o seu nome e o seu sobrenome.</p>
+      <div class="exemplo" id="exemploPergunta" hidden><small>Por exemplo, alguém responderia assim:</small><b></b></div>
+      <div class="lista" id="opcoesPergunta"></div>
+      <div class="cresce"></div>
+      <div class="acoes" id="acoesPergunta">
+        <button class="btn btn--vermelho btn--mic largura-total" id="btnFalar"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.3" stroke-linecap="round"><rect x="9" y="2" width="6" height="12" rx="3"/><path d="M5 11a7 7 0 0 0 14 0M12 18v4"/></svg>Falar a resposta</button>
+        <button class="btn btn--claro" id="btnEscrever"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.3" stroke-linecap="round" stroke-linejoin="round"><path d="M4 20h4l10-10-4-4L4 16z"/></svg>Escrever a resposta</button>
+        <button class="btn btn--fantasma" id="btnPularAqui" hidden>Não tenho, pular esta pergunta</button>
+        <button class="btn btn--fantasma" id="btnOuvirPergunta">Ouvir a pergunta de novo</button>
+      </div>
+    </section>
+
+    <section class="tela" id="t-ouvindo" data-titulo="Gravando a resposta">
+      <span class="selo vermelho"><span class="onda"><i></i><i></i><i></i><i></i><i></i></span> <span id="seloOuvindo">Estou ouvindo</span></span>
+      <h1 id="tituloOuvindo">Pode falar agora</h1>
+      <p class="sub" id="subOuvindo">Quando terminar, aperte o botão vermelho de parar.</p>
+      <div class="equalizador" aria-hidden="true"><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i></div>
+      <div class="ao-vivo" id="aoVivo" data-vazio="O que você falar aparece aqui…" aria-live="polite"></div>
+      <div class="cresce"></div>
+      <div class="acoes">
+        <button class="btn btn--vermelho largura-total" id="btnParar"><svg viewBox="0 0 24 24" fill="currentColor"><rect x="6" y="6" width="12" height="12" rx="3"/></svg>Parar de gravar</button>
+        <button class="btn btn--claro largura-total" id="btnMicDeNovo" hidden><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.3" stroke-linecap="round"><rect x="9" y="2" width="6" height="12" rx="3"/><path d="M5 11a7 7 0 0 0 14 0M12 18v4"/></svg>Tocar aqui para falar</button>
+        <button class="btn btn--fantasma" id="btnOuvindoEscrever">Prefiro escrever</button>
+      </div>
+    </section>
+
+    <section class="tela" id="t-escrever" data-titulo="Escrever a resposta">
+      <span class="selo ambar">Escreva a sua resposta</span>
+      <h1 class="pergunta" id="txtPerguntaEsc">Qual é o seu nome completo?</h1>
+      <p class="sub" id="ajudaEsc"></p>
+      <div class="exemplo" id="exemploEsc" hidden><small>Por exemplo, alguém responderia assim:</small><b></b></div>
+      <label class="rotulo" for="campoResp" id="rotuloCampo">Sua resposta</label>
+      <textarea class="campo" id="campoResp" placeholder="Escreva aqui…"></textarea>
+      <div class="tel-linha" id="linhaTel" hidden>
+        <label class="tel-bloco"><span>DDD</span><input class="campo campo--linha" id="campoDDD" type="tel" inputmode="numeric" maxlength="2" placeholder="11"></label>
+        <label class="tel-bloco"><span>Número do telefone</span><input class="campo campo--linha" id="campoNum" type="tel" inputmode="numeric" maxlength="10" placeholder="99999-9999"></label>
+      </div>
+      <div class="cresce"></div>
+      <div class="acoes">
+        <button class="btn btn--verde largura-total" id="btnSalvarEsc" disabled><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"><path d="m4.5 12.5 5 5 10-11"/></svg>Pronto</button>
+        <button class="btn btn--claro" id="btnVoltarFala"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.3" stroke-linecap="round"><rect x="9" y="2" width="6" height="12" rx="3"/><path d="M5 11a7 7 0 0 0 14 0M12 18v4"/></svg>Prefiro falar</button>
+      </div>
+    </section>
+
+    <section class="tela" id="t-processando" data-titulo="Escrevendo o que foi dito">
+      <span class="selo"><span class="onda"><i></i><i></i><i></i><i></i><i></i></span> Um momento</span>
+      <h1>Estou escrevendo o que você acabou de falar</h1>
+      <div class="cresce"></div>
+      <div class="carregando"><div class="pontos" aria-hidden="true"><i></i><i></i><i></i></div><p class="frase-rotativa" id="fraseProc">Já estou quase terminando…</p></div>
+      <div class="cresce"></div>
+    </section>
+
+    <section class="tela" id="t-confirmar" data-titulo="Está certo?">
+      <span class="selo verde"><span class="onda"><i></i><i></i><i></i><i></i><i></i></span> Confira comigo</span>
+      <h1>Está certo?</h1>
+      <p class="sub">Foi isto que eu entendi. Se não estiver certo, é só falar de novo.</p>
+      <div class="citacao" id="citacao">—</div>
+      <button class="btn btn--fantasma" id="btnOuvirResp">Ouvir de novo</button>
+      <div class="cresce"></div>
+      <div class="acoes">
+        <button class="btn btn--verde" id="btnIssoMesmo"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"><path d="m4.5 12.5 5 5 10-11"/></svg>Isso mesmo</button>
+        <button class="btn btn--claro" id="btnRegravar"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.3" stroke-linecap="round"><rect x="9" y="2" width="6" height="12" rx="3"/><path d="M5 11a7 7 0 0 0 14 0M12 18v4"/></svg>Responder de novo</button>
+      </div>
+    </section>
+
+    <section class="tela" id="t-faltou" data-titulo="Falta completar a resposta">
+      <span class="selo ambar">Preciso de mais uma informação</span>
+      <h1 id="txtFaltou">Faltou uma parte</h1>
+      <p class="sub" id="subFaltou"></p>
+      <div class="citacao" id="citacaoFaltou" style="background:var(--ambar-suave);border-left-color:var(--ambar)">—</div>
+      <div class="cresce"></div>
+      <div class="acoes">
+        <button class="btn btn--vermelho btn--mic largura-total" id="btnFaltouFalar"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.3" stroke-linecap="round"><rect x="9" y="2" width="6" height="12" rx="3"/><path d="M5 11a7 7 0 0 0 14 0M12 18v4"/></svg>Falar de novo</button>
+        <button class="btn btn--claro" id="btnFaltouEscrever"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.3" stroke-linecap="round" stroke-linejoin="round"><path d="M4 20h4l10-10-4-4L4 16z"/></svg>Escrever a resposta</button>
+      </div>
+    </section>
+
+    <section class="tela" id="t-erro" data-titulo="Não consegui entender">
+      <span class="selo ambar">Vamos tentar de novo</span>
+      <h1>Não consegui entender</h1>
+      <p class="sub">Fale um pouco mais devagar e mais perto do aparelho. Se estiver com barulho por perto, procure um lugar mais calmo.</p>
+      <svg class="ilustra" viewBox="0 0 280 150" role="img" aria-label="Celular pensando">
+        <rect x="104" y="18" width="72" height="116" rx="15" fill="var(--papel)" stroke="var(--borda)" stroke-width="3"/>
+        <circle cx="126" cy="66" r="6" fill="var(--tinta-fraca)"/><circle cx="154" cy="66" r="6" fill="var(--tinta-fraca)"/>
+        <path d="M124 92q16 12 32 0" stroke="var(--tinta-fraca)" stroke-width="5" fill="none" stroke-linecap="round"/>
+        <circle cx="62" cy="48" r="9" fill="var(--ambar)" opacity=".55"/>
+        <circle cx="44" cy="80" r="6" fill="var(--ambar)" opacity=".4"/>
+        <circle cx="222" cy="52" r="9" fill="var(--ambar)" opacity=".55"/>
+      </svg>
+      <div class="cresce"></div>
+      <div class="acoes">
+        <button class="btn btn--vermelho btn--mic" id="btnTentarDeNovo"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.3" stroke-linecap="round"><rect x="9" y="2" width="6" height="12" rx="3"/><path d="M5 11a7 7 0 0 0 14 0M12 18v4"/></svg>Falar de novo</button>
+        <button class="btn btn--claro" id="btnEscreverErro">Prefiro escrever</button>
+        <button class="btn btn--fantasma largura-total" id="btnPularErro" hidden>Pular esta pergunta</button>
+      </div>
+    </section>
+
+    <section class="tela" id="t-mais" data-titulo="Quer adicionar mais?">
+      <span class="selo"><span class="onda"><i></i><i></i><i></i><i></i><i></i></span> <span id="seloMais">Mais alguma coisa?</span></span>
+      <h1 id="txtMais">Você trabalhou em outro lugar também?</h1>
+      <p class="sub" id="subMais">Se tiver mais de um, o currículo fica mais forte.</p>
+      <div class="lista" id="resumoMais"></div>
+      <div class="cresce"></div>
+      <div class="acoes">
+        <button class="btn btn--azul" id="btnMaisSim"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"><path d="M12 5v14M5 12h14"/></svg><span id="lblMaisSim">Sim, tem mais um</span></button>
+        <button class="btn btn--verde" id="btnMaisNao"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"><path d="m4.5 12.5 5 5 10-11"/></svg><span id="lblMaisNao">Não, só esse</span></button>
+      </div>
+    </section>
+
+    <section class="tela" id="t-progresso" data-titulo="Seu progresso">
+      <span class="selo verde"><span class="onda"><i></i><i></i><i></i><i></i><i></i></span> Ouça o seu progresso</span>
+      <h1>Seu progresso</h1>
+      <div class="trilho"><span id="barraProg"></span></div>
+      <div class="lista" id="listaSecoes"></div>
+      <div class="cresce"></div>
+      <div class="acoes"><button class="btn btn--azul largura-total" id="btnContinuar">Continuar</button></div>
+    </section>
+
+    <section class="tela" id="t-conferir" data-titulo="Vamos conferir">
+      <span class="selo"><span class="onda"><i></i><i></i><i></i><i></i><i></i></span> Vou ler o currículo para você</span>
+      <h1>Vamos conferir o seu currículo?</h1>
+      <p class="sub">Para a sua segurança, eu vou ler tudo em voz alta. Assim você ouve e vê se está correto antes de enviar para alguém.</p>
+      <svg class="ilustra" viewBox="0 0 280 160" role="img" aria-label="Mão segurando um documento">
+        <rect x="88" y="14" width="104" height="112" rx="10" fill="var(--papel)" stroke="var(--borda)" stroke-width="3"/>
+        <rect x="104" y="32" width="52" height="8" rx="4" fill="var(--azul)"/>
+        <rect x="104" y="50" width="72" height="6" rx="3" fill="var(--borda)"/>
+        <rect x="104" y="64" width="64" height="6" rx="3" fill="var(--borda)"/>
+        <rect x="104" y="78" width="70" height="6" rx="3" fill="var(--borda)"/>
+        <rect x="104" y="92" width="46" height="6" rx="3" fill="var(--borda)"/>
+        <path d="M74 150q-14-26 4-40t34 4" fill="var(--ambar)"/>
+        <path d="M212 56q10 14 0 28M228 44q18 26 0 52" stroke="var(--verde)" stroke-width="5" fill="none" stroke-linecap="round"/>
+      </svg>
+      <div class="cresce"></div>
+      <div class="acoes"><button class="btn btn--azul largura-total" id="btnLerCV"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.3" stroke-linecap="round"><path d="M11 5 6 9H3v6h3l5 4V5z"/><path d="M15.5 8.5a5 5 0 0 1 0 7"/></svg>Ouvir meu currículo</button></div>
+    </section>
+
+    <section class="tela" id="t-lendo" data-titulo="Lendo em voz alta">
+      <span class="selo"><span class="onda"><i></i><i></i><i></i><i></i><i></i></span> Lendo em voz alta</span>
+      <div class="trilho"><span id="barraLeitura"></span></div>
+      <div class="passo-txt" id="passoLeitura">Lendo parte 1 de 4</div>
+      <div class="lista" id="listaLeitura"></div>
+      <div class="cresce"></div>
+      <div class="acoes"><button class="btn btn--claro largura-total" id="btnPararLeitura">Parar a leitura</button></div>
+    </section>
+
+    <section class="tela" id="t-tudocerto" data-titulo="Está tudo certo?">
+      <span class="selo verde"><span class="onda"><i></i><i></i><i></i><i></i><i></i></span> Está tudo certo com as informações?</span>
+      <h1>Está tudo certo?</h1>
+      <p class="sub">Se algo estiver errado, dá para arrumar agora. Depois de enviar também dá, mas é melhor conferir aqui.</p>
+      <div class="cresce"></div>
+      <div class="acoes">
+        <button class="btn btn--claro largura-total" id="btnOuvirTudo">Ouvir tudo de novo</button>
+        <button class="btn btn--verde" id="btnSimCerto"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"><path d="m4.5 12.5 5 5 10-11"/></svg>Sim, está certo</button>
+        <button class="btn btn--vermelho" id="btnMudarAlgo">Quero mudar algo</button>
+      </div>
+    </section>
+
+    <section class="tela" id="t-corrigir" data-titulo="Corrigir uma parte">
+      <span class="selo"><span class="onda"><i></i><i></i><i></i><i></i><i></i></span> Toque na parte que quer mudar</span>
+      <h1>Quer corrigir alguma parte?</h1>
+      <div class="lista" id="listaCorrigir"></div>
+      <div class="cresce"></div>
+      <div class="acoes"><button class="btn btn--verde largura-total" data-ir="t-tudocerto">Está tudo certo</button></div>
+    </section>
+
+    <section class="tela" id="t-faltando" data-titulo="Faltam informações">
+      <span class="selo ambar">Ainda falta um pouquinho</span>
+      <h1>Faltam algumas informações</h1>
+      <p class="sub">Sem elas, o currículo fica incompleto e a empresa pode nem chamar você. Vamos preencher juntos?</p>
+      <div class="lista" id="listaFaltando"></div>
+      <div class="cresce"></div>
+      <div class="acoes"><button class="btn btn--azul largura-total" id="btnIrFaltando">Responder agora</button></div>
+    </section>
+
+    <section class="tela" id="t-preparando" data-titulo="Preparando o currículo">
+      <span class="selo"><span class="onda"><i></i><i></i><i></i><i></i><i></i></span> Preparando o seu documento</span>
+      <h1>Preparando o seu currículo</h1>
+      <div class="cresce"></div>
+      <div class="carregando">
+        <svg class="ilustra" viewBox="0 0 280 150" role="img" aria-label="Documento sendo montado">
+          <rect x="92" y="16" width="96" height="112" rx="10" fill="var(--papel)" stroke="var(--borda)" stroke-width="3"/>
+          <rect x="108" y="34" width="46" height="8" rx="4" fill="var(--azul)"><animate attributeName="width" values="10;46;46" dur="2.4s" repeatCount="indefinite"/></rect>
+          <rect x="108" y="54" width="64" height="6" rx="3" fill="var(--borda)"><animate attributeName="width" values="0;64;64" dur="2.4s" begin=".3s" repeatCount="indefinite"/></rect>
+          <rect x="108" y="70" width="56" height="6" rx="3" fill="var(--borda)"><animate attributeName="width" values="0;56;56" dur="2.4s" begin=".6s" repeatCount="indefinite"/></rect>
+          <rect x="108" y="86" width="62" height="6" rx="3" fill="var(--borda)"><animate attributeName="width" values="0;62;62" dur="2.4s" begin=".9s" repeatCount="indefinite"/></rect>
+          <rect x="108" y="102" width="38" height="6" rx="3" fill="var(--borda)"><animate attributeName="width" values="0;38;38" dur="2.4s" begin="1.2s" repeatCount="indefinite"/></rect>
+          <g fill="var(--ambar)">
+            <circle cx="56" cy="46" r="5"><animate attributeName="r" values="2;6;2" dur="1.8s" repeatCount="indefinite"/></circle>
+            <circle cx="228" cy="96" r="5"><animate attributeName="r" values="2;6;2" dur="1.8s" begin=".5s" repeatCount="indefinite"/></circle>
+            <circle cx="220" cy="38" r="4"><animate attributeName="r" values="1;5;1" dur="1.8s" begin="1s" repeatCount="indefinite"/></circle>
+          </g>
+        </svg>
+        <div class="pontos" aria-hidden="true"><i></i><i></i><i></i></div>
+        <p class="frase-rotativa" id="frasePrep">Organizando as palavras bonitas…</p>
+      </div>
+      <div class="cresce"></div>
+    </section>
+
+    <section class="tela" id="t-pronto" data-titulo="Currículo pronto">
+      <div class="confete" id="confete" aria-hidden="true"></div>
+      <span class="selo verde"><span class="onda"><i></i><i></i><i></i><i></i><i></i></span> Seu currículo ficou pronto</span>
+      <h1>Currículo pronto!</h1>
+      <div class="cv" id="previaCV"></div>
+      <div class="cresce"></div>
+      <div class="acoes">
+        <button class="btn btn--claro" id="btnOuvirCV"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.3" stroke-linecap="round"><path d="M11 5 6 9H3v6h3l5 4V5z"/><path d="M15.5 8.5a5 5 0 0 1 0 7"/></svg>Ouvir o que está escrito</button>
+        <button class="btn btn--verde" data-ir="t-enviar"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.3" stroke-linecap="round" stroke-linejoin="round"><path d="M21 3 10 14M21 3l-7 18-4-7-7-4z"/></svg>Enviar meu currículo</button>
+      </div>
+    </section>
+
+    <section class="tela" id="t-enviar" data-titulo="Como quer enviar">
+      <span class="selo"><span class="onda"><i></i><i></i><i></i><i></i><i></i></span> Como você quer receber o currículo?</span>
+      <h1>Como quer enviar?</h1>
+      <div class="acoes" style="margin-top:8px">
+        <button class="btn btn--verde largura-total" id="btnWhats"><svg viewBox="0 0 24 24" fill="currentColor"><path d="M12 2a10 10 0 0 0-8.6 15L2 22l5.2-1.3A10 10 0 1 0 12 2m0 2a8 8 0 1 1-4.1 14.8l-.4-.2-2.6.7.7-2.5-.3-.4A8 8 0 0 1 12 4m-3.3 4c-.2 0-.5.1-.7.4-.2.3-.9.9-.9 2.1s.9 2.4 1 2.6c.1.2 1.7 2.8 4.3 3.8 2.1.8 2.6.7 3 .6.5 0 1.5-.6 1.7-1.2.2-.6.2-1.1.1-1.2l-.6-.3-1.6-.8c-.2-.1-.4-.1-.6.1l-.8 1c-.2.2-.3.2-.5.1a6.6 6.6 0 0 1-3.3-2.9c-.2-.3 0-.5.1-.6l.4-.5.3-.5v-.5l-.8-1.9c-.2-.4-.4-.4-.6-.4z"/></svg>Mandar no WhatsApp</button>
+        <button class="btn btn--azul largura-total" id="btnImprimir"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.3" stroke-linecap="round" stroke-linejoin="round"><path d="M6 9V3h12v6"/><rect x="3" y="9" width="18" height="8" rx="2"/><path d="M6 14h12v7H6z"/></svg>Imprimir currículo</button>
+        <button class="btn btn--claro largura-total" id="btnBaixar"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.3" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3v12m0 0 4.5-4.5M12 15l-4.5-4.5"/><path d="M4 18v2a1 1 0 0 0 1 1h14a1 1 0 0 0 1-1v-2"/></svg>Guardar no celular</button>
+        <div class="aviso" id="avisoEnvio" hidden><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.3" stroke-linecap="round"><circle cx="12" cy="12" r="9"/><path d="M12 8v5M12 16.5v.01"/></svg><span id="txtAvisoEnvio"></span></div>
+        <button class="btn btn--fantasma largura-total" id="btnRecomecar">Voltar ao início</button>
+      </div>
+      <div class="cresce"></div>
+    </section>
+
+    <section class="tela" id="t-offline" data-titulo="Sem internet">
+      <span class="selo ambar">Não se preocupe, está tudo bem guardado</span>
+      <h1>Sem internet agora</h1>
+      <p class="sub">O sinal sumiu, mas as suas respostas já estão salvas no aparelho. Assim que a internet voltar, a gente continua de onde parou.</p>
+      <svg class="ilustra" viewBox="0 0 280 150" role="img" aria-label="Cofre guardando os dados">
+        <rect x="86" y="24" width="108" height="100" rx="14" fill="var(--ambar-suave)" stroke="var(--ambar)" stroke-width="3"/>
+        <circle cx="140" cy="74" r="26" fill="var(--papel)" stroke="var(--ambar)" stroke-width="3"/>
+        <path d="M131 70v-6a9 9 0 0 1 18 0v6" stroke="var(--tinta)" stroke-width="4" fill="none" stroke-linecap="round"/>
+        <rect x="128" y="70" width="24" height="18" rx="4" fill="var(--tinta)"/>
+      </svg>
+      <div class="cresce"></div>
+      <div class="acoes"><button class="btn btn--azul largura-total" id="btnTentarNet">Tentar de novo</button></div>
+    </section>
+
+  </main>
+  <p class="rodape-nota" id="rodapeNota">Protótipo navegável · Fala Currículo</p>
+</div>
+
+<div class="painel" id="painel">
+  <div class="painel-cx">
+    <h2>Todas as telas</h2>
+    <p>Atalho para a apresentação: pule direto para qualquer tela do fluxo.</p>
+    <div class="grade" id="gradeTelas"></div>
+    <button class="btn btn--claro" id="btnFecharPainel" style="margin-top:14px">Fechar</button>
+  </div>
+</div>
+
+<script>
+(function(){
+"use strict";
+
+/* ============================================================
+   1. ROTEIRO — grupos únicos e grupos que se repetem
+   ============================================================ */
+var SECOES = [
+  {id:"pessoais", nome:"Dados Pessoais", icone:'<circle cx="12" cy="8" r="4"/><path d="M4 21a8 8 0 0 1 16 0"/>'},
+  {id:"trabalho", nome:"Trabalho",       icone:'<rect x="3" y="7" width="18" height="13" rx="2"/><path d="M9 7V5a2 2 0 0 1 2-2h2a2 2 0 0 1 2 2v2"/>'},
+  {id:"estudo",   nome:"Estudo",         icone:'<path d="M3 8l9-4 9 4-9 4z"/><path d="M7 10v5c0 1.5 2.2 3 5 3s5-1.5 5-3v-5"/>'},
+  {id:"contato",  nome:"Contato",        icone:'<path d="M5 4h4l2 5-2.5 1.5a11 11 0 0 0 5 5L15 13l5 2v4a1 1 0 0 1-1 1A16 16 0 0 1 4 5a1 1 0 0 1 1-1z"/>'}
+];
+
+var SUPERIOR = ["Curso técnico","Faculdade"];
+
+var ROTEIRO = [
+  {
+    id:"pessoais", secao:"pessoais", lista:false,
+    perguntas:[
+      {id:"nome", obrig:true, tipo:"nome", texto:"Qual é o seu nome completo?", ajuda:"Fale o seu nome e o seu sobrenome.", exemplo:"José da Silva"},
+      {id:"cidade", obrig:true, tipo:"texto", texto:"Em qual cidade você mora?", ajuda:"Fale só o nome da cidade.", exemplo:"São Paulo"},
+      {id:"estado", obrig:true, tipo:"estado", texto:"E essa cidade fica em qual estado?", ajuda:"Por exemplo: São Paulo, Bahia, Ceará.", exemplo:"São Paulo"},
+      {id:"objetivo", obrig:true, tipo:"texto", texto:"Que trabalho você está procurando agora?", ajuda:"Fale o nome da vaga que você quer. Por exemplo: ajudante de pedreiro.", exemplo:"Ajudante de pedreiro"},
+      {id:"cnh", obrig:false, tipo:"opcao", texto:"Você tem carteira de motorista?", ajuda:"Se não tiver, não tem problema nenhum. Não vai aparecer no currículo.",
+       opcoes:["Não tenho","Sim, de moto","Sim, de carro","Sim, de moto e de carro"]},
+      {id:"modalidade", obrig:false, tipo:"opcao", texto:"Você pode trabalhar fora de casa?", ajuda:"Toque numa das opções.",
+       opcoes:["Sim, no local de trabalho","Só de casa","Dos dois jeitos"]},
+      {id:"idade", obrig:false, tipo:"idade", texto:"Quantos anos você tem?", ajuda:"Pode falar só o número.", exemplo:"42"}
+    ]
+  },
+  {
+    id:"trabalho", secao:"trabalho", lista:true,
+    porta:{id:"jaTrabalhou", tipo:"opcao", texto:"Você já trabalhou antes?", ajuda:"Vale qualquer trabalho, mesmo sem carteira assinada.",
+      opcoes:["Sim, já trabalhei","Nunca trabalhei. Procuro o primeiro emprego"], negativa:"Nunca trabalhei. Procuro o primeiro emprego"},
+    perguntas:[
+      {id:"cargo", obrig:true, tipo:"texto", texto:"Qual era a sua função nesse trabalho?", ajuda:"É o nome do serviço que você fazia. Por exemplo: ajudante de pedreiro.", exemplo:"Ajudante de pedreiro"},
+      {id:"empresa", obrig:true, tipo:"texto", texto:"Onde você fazia esse trabalho?", ajuda:"Pode ser o nome da empresa, da obra, da loja, ou a casa das pessoas. Se era por conta própria, toque no botão verde.", exemplo:"Construtora Silva", atalhos:["Trabalhei por conta própria"]},
+      {id:"periodo", obrig:true, tipo:"periodo", texto:"Quanto tempo você ficou nesse trabalho?", ajuda:"Fale com número e a palavra mês ou ano. Por exemplo: dois anos.", exemplo:"2 anos"},
+      {id:"atividades", obrig:true, tipo:"longo", texto:"O que você fazia todo dia nesse trabalho?", ajuda:"Conte duas ou três coisas que você fazia.", exemplo:"Eu carregava material, fazia massa e ajudava no reboco"},
+      {id:"maisSobre", obrig:false, tipo:"texto", texto:"Quer contar mais alguma coisa sobre esse trabalho?", ajuda:"Pode falar o que quiser: como você aprendeu, com quem você trabalhava, o que você fazia de melhor. Se não quiser, pode pular.", exemplo:"Aprendi na obra com meu tio e depois passei a ensinar os mais novos"}
+    ],
+    mais:{titulo:"Você trabalhou em outro lugar também?", sub:"Contar mais de um trabalho deixa o currículo mais forte.",
+      sim:"Sim, trabalhei em outro", nao:"Não, só esse"},
+    resumo:function(it){ return [it.cargo, it.empresa].filter(Boolean).join(" — "); }
+  },
+  {
+    id:"estudo", secao:"estudo", lista:true,
+    perguntas:[
+      {id:"escolaridade", obrig:true, tipo:"opcao", texto:"Até onde você estudou?", ajuda:"Toque na opção mais parecida com a sua.",
+       opcoes:["Não estudei","Ensino fundamental","Ensino médio","Curso técnico","Faculdade"]},
+      {id:"instituicao", tipo:"texto", texto:"Qual era o nome da escola ou da faculdade?", ajuda:"Se não lembrar o nome, pode pular esta pergunta.", exemplo:"Escola Estadual Jardim União",
+       mostrarSe:function(it){ return it.escolaridade && it.escolaridade !== "Não estudei"; },
+       obrigSe:function(it){ return SUPERIOR.indexOf(it.escolaridade) >= 0; }},
+      {id:"situacao", obrig:true, tipo:"opcao", texto:"Você terminou os estudos nessa escola?", ajuda:"Toque numa das opções.",
+       opcoes:["Terminei","Não terminei","Ainda estou estudando"],
+       mostrarSe:function(it){ return it.escolaridade && it.escolaridade !== "Não estudei"; }}
+    ],
+    maisSe:function(it){ return it.escolaridade && it.escolaridade !== "Não estudei"; },
+    mais:{titulo:"Você estudou em outro lugar também?", sub:"Por exemplo: terminou o fundamental numa escola e o médio em outra.",
+      sim:"Sim, estudei em outro", nao:"Não, só esse"},
+    resumo:function(it){ return [it.escolaridade, it.instituicao].filter(Boolean).join(" — "); }
+  },
+  {
+    id:"cursos", secao:"estudo", lista:true,
+    porta:{id:"fezCurso", tipo:"opcao", texto:"Você fez algum curso?", ajuda:"Vale qualquer curso, mesmo que seja curto.",
+      opcoes:["Sim, fiz curso","Não fiz nenhum curso"], negativa:"Não fiz nenhum curso"},
+    perguntas:[
+      {id:"curso", obrig:true, tipo:"texto", texto:"Qual foi o curso que você fez?", ajuda:"Fale o nome do curso. Por exemplo: curso de segurança em obras.", exemplo:"Curso de Segurança em Obras"}
+    ],
+    mais:{titulo:"Você fez outro curso também?", sub:"Pode contar todos, um de cada vez.",
+      sim:"Sim, fiz outro curso", nao:"Não, só esse"},
+    resumo:function(it){ return it.curso || ""; }
+  },
+  {
+    id:"idiomas", secao:"estudo", lista:false,
+    perguntas:[
+      {id:"idiomas", obrig:false, tipo:"texto", texto:"Você fala alguma outra língua além do português?", ajuda:"Se falar só português, pode pular esta pergunta.", exemplo:"Espanhol básico"}
+    ]
+  },
+  {
+    id:"contato", secao:"contato", lista:false,
+    perguntas:[
+      {id:"telefone", obrig:true, tipo:"telefone", texto:"Qual é o seu telefone com WhatsApp?", ajuda:"Fale o DDD e depois o número, bem devagar.", exemplo:"(11) 99828-0299"},
+      {id:"email", obrig:false, tipo:"email", escrever:true, texto:"Qual é o seu e-mail?", ajuda:"É bem mais fácil escrever o e-mail do que falar.", exemplo:"jose.silva@gmail.com"},
+      {id:"temLinkedin", obrig:false, tipo:"opcao", texto:"Você tem LinkedIn?", ajuda:"É um site onde as empresas procuram gente para trabalhar.",
+       opcoes:["Não tenho","Tenho LinkedIn"]},
+      {id:"linkedin", tipo:"texto", escrever:true, texto:"Qual é o seu LinkedIn?", ajuda:"Escreva o endereço do seu perfil.", exemplo:"linkedin.com/in/josedasilva",
+       mostrarSe:function(it){ return it.temLinkedin === "Tenho LinkedIn"; }}
+    ]
+  }
+];
+
+/* ============================================================
+   2. ESTADO
+   ============================================================ */
+var S = {
+  tela:"t-inicio",
+  pos:{g:0, inst:0, q:-1},
+  dados:{}, portas:{}, visitados:{},
+  rascunho:"", ultimaChave:null, repeticoes:0, som:true, modo:"sozinho", micOk:null,
+  editandoSecao:null, conferindoFaltas:false,
+  faltouEscrever:false, cv:null
+};
+
+var $ = function(s){ return document.querySelector(s); };
+var $$ = function(s){ return Array.prototype.slice.call(document.querySelectorAll(s)); };
+var reduzir = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+var ORDEM = $$(".tela").map(function(t){ return t.id; });
+var dentroDeQuadro = (function(){ try{ return window.self !== window.top; }catch(e){ return true; } })();
+
+function zerar(){
+  S.dados = {}; S.portas = {}; S.visitados = {};
+  ROTEIRO.forEach(function(g){ S.dados[g.id] = [{}]; });
+  S.pos = {g:0, inst:0, q:-1};
+  S.editandoSecao = null; S.conferindoFaltas = false; S.cv = null;
+  S.rascunho = ""; S.ultimaChave = null;
+}
+zerar();
+
+/* ============================================================
+   3. NAVEGAÇÃO
+   ============================================================ */
+function ir(id, volta){
+  var atual = document.querySelector(".tela.ativa");
+  if(atual) atual.classList.remove("ativa","entra","entra-volta");
+  var nova = document.getElementById(id);
+  if(!nova) return;
+  S.tela = id;
+  nova.classList.add("ativa");
+  void nova.offsetWidth;
+  nova.classList.add(volta ? "entra-volta" : "entra");
+  window.scrollTo({top:0, behavior: reduzir ? "auto" : "smooth"});
+  aoEntrar(id);
+}
+document.addEventListener("click", function(e){
+  var a = e.target.closest("[data-ir]");
+  if(a){ pararTudo(); ir(a.getAttribute("data-ir")); }
+  var v = e.target.closest("[data-voltar]");
+  if(v){ pararTudo(); ir(v.getAttribute("data-voltar"), true); }
+});
+
+/* ============================================================
+   4. O APP FALA
+   ============================================================ */
+var vozPT = null;
+function acharVoz(){
+  if(!("speechSynthesis" in window)) return;
+  var vs = window.speechSynthesis.getVoices() || [];
+  vozPT = vs.filter(function(v){ return /pt[-_]BR/i.test(v.lang); })[0]
+       || vs.filter(function(v){ return /^pt/i.test(v.lang); })[0] || null;
+}
+if("speechSynthesis" in window){ acharVoz(); window.speechSynthesis.onvoiceschanged = acharVoz; }
+
+function falar(texto, aoFim){
+  if(!("speechSynthesis" in window) || !S.som || !texto){ if(aoFim) setTimeout(aoFim, 200); return; }
+  try{ window.speechSynthesis.cancel(); }catch(e){}
+  var u = new SpeechSynthesisUtterance(String(texto));
+  u.lang = "pt-BR";
+  if(vozPT) u.voice = vozPT;
+  u.rate = S.modo === "ajuda" ? 0.96 : 0.85;
+  u.onstart = function(){ document.body.classList.add("falando"); };
+  u.onend = function(){ document.body.classList.remove("falando"); if(aoFim) aoFim(); };
+  u.onerror = function(){ document.body.classList.remove("falando"); if(aoFim) aoFim(); };
+  window.speechSynthesis.speak(u);
+}
+function calar(){ try{ window.speechSynthesis.cancel(); }catch(e){} document.body.classList.remove("falando"); }
+
+$("#btnSom").addEventListener("click", function(){
+  S.som = !S.som;
+  this.setAttribute("aria-pressed", S.som ? "true" : "false");
+  $("#icoSom").innerHTML = S.som
+    ? '<path d="M11 5 6 9H3v6h3l5 4V5z"/><path d="M15.5 8.5a5 5 0 0 1 0 7"/><path d="M18.5 5.5a9 9 0 0 1 0 13"/>'
+    : '<path d="M11 5 6 9H3v6h3l5 4V5z"/><path d="M17 9l4 6M21 9l-4 6"/>';
+  if(!S.som) calar();
+});
+
+/* ============================================================
+   5. O APP OUVE
+   ============================================================ */
+var SR = window.SpeechRecognition || window.webkitSpeechRecognition;
+var rec = null, gravando = false, textoOuvido = "", encerrando = false;
+function temMic(){ return !!SR && S.micOk !== false; }
+
+function iniciarGravacao(){
+  if(!SR){ ir("t-escrever"); return false; }
+  textoOuvido = ""; encerrando = false;
+  var el = $("#aoVivo"); if(el) el.textContent = "";
+  try{ if(rec){ rec.onend = null; rec.abort(); } }catch(e){}
+  try{ rec = new SR(); }catch(e){ ir("t-escrever"); return false; }
+
+  rec.lang = "pt-BR"; rec.interimResults = true; rec.continuous = true; rec.maxAlternatives = 1;
+
+  rec.onstart = function(){
+    gravando = true;
+    document.body.classList.add("ouvindo");
+    $("#btnParar").hidden = false;
+    $("#btnMicDeNovo").hidden = true;
+    $("#tituloOuvindo").textContent = "Pode falar agora";
+    $("#subOuvindo").textContent = "Quando terminar, aperte o botão vermelho de parar.";
+    $("#seloOuvindo").textContent = "Estou ouvindo";
+  };
+  rec.onresult = function(ev){
+    var fechado = "", aberto = "";
+    for(var k = 0; k < ev.results.length; k++){
+      var r = ev.results[k];
+      if(r.isFinal) fechado += r[0].transcript; else aberto += r[0].transcript;
+    }
+    textoOuvido = (fechado + " " + aberto).replace(/\s+/g," ").trim();
+    var a = $("#aoVivo"); if(a) a.textContent = textoOuvido;
+  };
+  rec.onerror = function(ev){
+    gravando = false;
+    document.body.classList.remove("ouvindo");
+    var erro = ev && ev.error;
+    if(erro === "not-allowed" || erro === "service-not-allowed"){
+      S.micOk = false;
+      $("#tituloOuvindo").textContent = "O microfone está bloqueado";
+      $("#subOuvindo").textContent = dentroDeQuadro
+        ? "Esta janela não tem permissão de microfone. Abra o link numa aba do navegador, ou responda escrevendo."
+        : "Toque no cadeado ao lado do endereço e libere o microfone. Ou responda escrevendo.";
+      $("#seloOuvindo").textContent = "Microfone bloqueado";
+      $("#btnParar").hidden = true;
+      $("#btnMicDeNovo").hidden = true;
+      falar("O microfone está bloqueado. Você pode responder escrevendo.");
+      return;
+    }
+    if(erro === "network"){ ir("t-offline"); return; }
+    if(erro === "no-speech"){
+      $("#tituloOuvindo").textContent = "Não ouvi nada";
+      $("#subOuvindo").textContent = "Toque no botão abaixo e fale mais perto do aparelho.";
+    }
+    $("#btnParar").hidden = true;
+    $("#btnMicDeNovo").hidden = false;
+  };
+  rec.onend = function(){
+    gravando = false;
+    document.body.classList.remove("ouvindo");
+    if(encerrando) return;
+    if(S.tela === "t-ouvindo" && !textoOuvido){
+      $("#btnParar").hidden = true;
+      $("#btnMicDeNovo").hidden = false;
+    }
+  };
+  try{ rec.start(); }
+  catch(e){ $("#btnParar").hidden = true; $("#btnMicDeNovo").hidden = false; return false; }
+  return true;
+}
+
+function pararGravacao(){
+  encerrando = true;
+  if(rec){ try{ rec.stop(); }catch(e){} }
+  gravando = false;
+  document.body.classList.remove("ouvindo");
+}
+function pararTudo(){ calar(); pararGravacao(); clearTimeout(timerAuto); clearTimeout(timerRepetir); clearInterval(timerFrases); lendo = false; }
+
+function falarResposta(){
+  calar();
+  if(!temMic()){ ir("t-escrever"); return; }
+  ir("t-ouvindo");
+  iniciarGravacao();
+}
+
+/* ============================================================
+   6. NÚMEROS FALADOS
+   ============================================================ */
+var UNI = {zero:0,um:1,uma:1,dois:2,duas:2,tres:3,quatro:4,cinco:5,seis:6,meia:6,sete:7,oito:8,nove:9,
+  dez:10,onze:11,doze:12,treze:13,catorze:14,quatorze:14,quinze:15,dezesseis:16,dezessete:17,dezoito:18,dezenove:19};
+var DEZ = {vinte:20,trinta:30,quarenta:40,cinquenta:50,sessenta:60,setenta:70,oitenta:80,noventa:90};
+var CEM = {cem:100,cento:100,duzentos:200,trezentos:300,quatrocentos:400,quinhentos:500,
+  seiscentos:600,setecentos:700,oitocentos:800,novecentos:900};
+
+function semAcento(t){ return String(t||"").normalize("NFD").replace(/[\u0300-\u036f]/g,"").toLowerCase(); }
+
+function classeDe(p){
+  if(Object.prototype.hasOwnProperty.call(CEM,p)) return 3;
+  if(Object.prototype.hasOwnProperty.call(DEZ,p)) return 2;
+  if(Object.prototype.hasOwnProperty.call(UNI,p)) return 1;
+  return 0;
+}
+function valorDe(p){
+  if(Object.prototype.hasOwnProperty.call(CEM,p)) return CEM[p];
+  if(Object.prototype.hasOwnProperty.call(DEZ,p)) return DEZ[p];
+  if(Object.prototype.hasOwnProperty.call(UNI,p)) return UNI[p];
+  return null;
+}
+
+/* idade: "quarenta e dois" -> 42 */
+function numeroDe(texto){
+  var t = semAcento(texto);
+  var so = t.replace(/[^0-9]/g,"");
+  if(so) return parseInt(so, 10);
+  var total = 0, achou = false;
+  t.split(/[\s,]+/).forEach(function(p){
+    var v = valorDe(p);
+    if(v !== null){ total += v; achou = true; }
+  });
+  return achou ? total : null;
+}
+
+/* telefone: junta blocos falados em dígitos.
+   "onze novecentos e noventa e oito duzentos e oitenta duzentos e noventa e nove"
+   -> "11" + "998" + "280" + "299" */
+function telefoneDigitos(texto){
+  var t = semAcento(texto).replace(/[^a-z0-9\s]/g," ");
+  var partes = t.split(/\s+/).filter(Boolean);
+  var saida = "", bloco = null, ultimaClasse = 0;
+
+  function fechar(){
+    if(bloco !== null){ saida += String(bloco); bloco = null; ultimaClasse = 0; }
+  }
+  partes.forEach(function(p){
+    if(p === "e") return;
+    if(/^\d+$/.test(p)){ fechar(); saida += p; return; }
+    var c = classeDe(p);
+    if(c === 0){ fechar(); return; }
+    var v = valorDe(p);
+    if(bloco === null){ bloco = v; ultimaClasse = c; return; }
+    if(c >= ultimaClasse){ fechar(); bloco = v; ultimaClasse = c; return; }
+    bloco += v; ultimaClasse = c;
+  });
+  fechar();
+  return saida;
+}
+
+function mascaraTelefone(d){
+  d = String(d).replace(/\D/g,"").slice(0,11);
+  if(d.length <= 2) return d.length ? "(" + d : "";
+  if(d.length <= 6) return "(" + d.slice(0,2) + ") " + d.slice(2);
+  if(d.length <= 10) return "(" + d.slice(0,2) + ") " + d.slice(2,6) + "-" + d.slice(6);
+  return "(" + d.slice(0,2) + ") " + d.slice(2,7) + "-" + d.slice(7);
+}
+
+var UFS = {"acre":"AC","alagoas":"AL","amapa":"AP","amazonas":"AM","bahia":"BA","ceara":"CE",
+  "distrito federal":"DF","espirito santo":"ES","goias":"GO","maranhao":"MA","mato grosso":"MT",
+  "mato grosso do sul":"MS","minas gerais":"MG","para":"PA","paraiba":"PB","parana":"PR",
+  "pernambuco":"PE","piaui":"PI","rio de janeiro":"RJ","rio grande do norte":"RN",
+  "rio grande do sul":"RS","rondonia":"RO","roraima":"RR","santa catarina":"SC",
+  "sao paulo":"SP","sergipe":"SE","tocantins":"TO"};
+var SIGLAS = ["AC","AL","AP","AM","BA","CE","DF","ES","GO","MA","MT","MS","MG","PA","PB","PR","PE","PI","RJ","RN","RS","RO","RR","SC","SP","SE","TO"];
+
+function maiusculas(t){
+  return String(t).split(" ").map(function(p){
+    if(!p) return p;
+    if(["de","da","do","das","dos","e"].indexOf(p.toLowerCase()) >= 0) return p.toLowerCase();
+    return p.charAt(0).toUpperCase() + p.slice(1).toLowerCase();
+  }).join(" ");
+}
+
+/* ============================================================
+   7. VALIDAÇÃO
+   ============================================================ */
+var VAZIAS = ["nao sei","sei nao","nada","sla","sei la","talvez","qualquer coisa","tanto faz"];
+function ehVazia(t){
+  var s = semAcento(t).replace(/[^a-z0-9\s]/g,"").trim();
+  return !s || VAZIAS.indexOf(s) >= 0;
+}
+
+function validar(p, texto, obrigatoria){
+  var t = String(texto || "").replace(/\s+/g," ").trim();
+  if(!t) return {ok:false, titulo:"Não recebi a sua resposta", msg:"Vamos tentar de novo? " + p.ajuda};
+  if(obrigatoria && ehVazia(t)) return {ok:false, titulo:"Preciso desta informação", msg:"Sem ela o currículo fica incompleto. " + p.ajuda};
+
+  switch(p.tipo){
+    case "nome":
+      if(t.split(/\s+/).filter(function(x){ return x.length > 1; }).length < 2)
+        return {ok:false, titulo:"Faltou o sobrenome", msg:"Preciso do nome e do sobrenome. Fale assim: José da Silva."};
+      return {ok:true, valor:maiusculas(t)};
+
+    case "idade":
+      var n = numeroDe(t);
+      if(n === null) return {ok:false, titulo:"Preciso de um número", msg:"A idade tem que ser um número. Fale só o número, por exemplo: quarenta e dois."};
+      if(n < 14 || n > 90) return {ok:false, titulo:"Esse número não parece certo", msg:"Fale de novo só a sua idade, por exemplo: quarenta e dois."};
+      return {ok:true, valor:String(n)};
+
+    case "telefone":
+      var d = /^[\d\s()\-+.]+$/.test(t) ? t.replace(/\D/g,"") : telefoneDigitos(t);
+      if(!d) return {ok:false, titulo:"Preciso de um número", msg:"O telefone tem que ser um número. Fale o DDD e depois o número, bem devagar."};
+      if(d.length > 11 && d.indexOf("55") === 0) d = d.slice(2);   // código do Brasil
+      if(d.length > 11) d = d.slice(-11);                          // sobrou alguma coisa na frente
+      if(d.length === 8 || d.length === 9)
+        return {ok:false, titulo:"Faltou o DDD",
+                msg:"Peguei o número, mas preciso dos dois dígitos do DDD na frente. O de São Paulo é 11.", escrever:true};
+      if(d.length < 10)
+        return {ok:false, titulo:"Faltam números no telefone",
+                msg:"Entendi " + d.length + " número" + (d.length > 1 ? "s" : "") + ", mas o telefone precisa de 10 ou 11 contando o DDD.", escrever:true};
+      return {ok:true, valor:mascaraTelefone(d)};
+
+    case "email":
+      var e = semAcento(t).replace(/\s*arroba\s*/g,"@").replace(/\s*ponto\s*/g,".")
+        .replace(/\s*underline\s*/g,"_").replace(/\s*traco\s*/g,"-").replace(/\s+/g,"");
+      if(!/^[a-z0-9._%+-]+@[a-z0-9.-]+\.[a-z]{2,}$/.test(e))
+        return {ok:false, titulo:"Esse e-mail não está completo",
+                msg:"Um e-mail precisa ter arroba e um ponto, assim: jose@gmail.com. É mais fácil escrever do que falar.", escrever:true};
+      return {ok:true, valor:e};
+
+    case "estado":
+      var s = semAcento(t).replace(/[^a-z\s]/g,"").trim();
+      if(UFS[s]) return {ok:true, valor:maiusculas(s) + " (" + UFS[s] + ")"};
+      var sig = t.toUpperCase().replace(/[^A-Z]/g,"");
+      if(sig.length === 2 && SIGLAS.indexOf(sig) >= 0){
+        for(var nm in UFS){ if(UFS[nm] === sig) return {ok:true, valor:maiusculas(nm) + " (" + sig + ")"}; }
+      }
+      for(var k in UFS){ if(s.indexOf(k) >= 0) return {ok:true, valor:maiusculas(k) + " (" + UFS[k] + ")"}; }
+      return {ok:false, titulo:"Não reconheci esse estado", msg:"Fale o nome do estado onde fica a sua cidade. Por exemplo: São Paulo, Bahia, Ceará."};
+
+    case "periodo":
+      var sa = semAcento(t);
+      var temNumero = /\d/.test(t) || numeroDe(t) !== null;
+      var temUnidade = /(mes|meses|ano|anos|semana|semanas|dia|dias)/.test(sa);
+      if(!temNumero || !temUnidade)
+        return {ok:false, titulo:"Preciso do tempo certinho", msg:"Fale quanto tempo com número e a palavra mês ou ano. Por exemplo: dois anos, ou oito meses."};
+      return {ok:true, valor:t};
+
+    case "longo":
+      if(t.split(/\s+/).length < 4)
+        return {ok:false, titulo:"Me conte um pouquinho mais", msg:"Fale duas ou três coisas que você fazia no serviço. Por exemplo: eu carregava material, fazia massa e ajudava no reboco."};
+      return {ok:true, valor:t};
+
+    case "opcao":
+      return {ok:true, valor:t};
+
+    default:
+      if(obrigatoria && t.replace(/\s/g,"").length < 2)
+        return {ok:false, titulo:"A resposta ficou muito curta", msg:p.ajuda};
+      return {ok:true, valor:t};
+  }
+}
+
+/* ============================================================
+   8. MOTOR DO ROTEIRO
+   ============================================================ */
+function grupoAtual(){ return ROTEIRO[S.pos.g]; }
+function instancia(g, i){
+  g = g || grupoAtual();
+  i = (i === undefined) ? S.pos.inst : i;
+  if(!S.dados[g.id]) S.dados[g.id] = [];
+  if(!S.dados[g.id][i]) S.dados[g.id][i] = {};
+  return S.dados[g.id][i];
+}
+function perguntaAtual(){
+  var g = grupoAtual();
+  if(S.pos.q === -1) return g.porta;
+  return g.perguntas[S.pos.q];
+}
+function aplicavel(p, it){ return !p.mostrarSe || !!p.mostrarSe(it); }
+function ehObrig(p, it){
+  if(p.obrig === true) return true;
+  if(typeof p.obrigSe === "function") return !!p.obrigSe(it);
+  return false;
+}
+function secaoInfo(id){
+  for(var k=0;k<SECOES.length;k++){ if(SECOES[k].id === id) return SECOES[k]; }
+  return SECOES[0];
+}
+function grupoPulado(g){
+  return !!(g.porta && S.portas[g.id] === g.porta.negativa);
+}
+
+/* --- entrar no grupo atual --- */
+function entrarGrupo(){
+  var g = grupoAtual();
+  S.visitados[g.id] = true;
+  if(g.porta && S.portas[g.id] === undefined){ S.pos.q = -1; mostrarPergunta(); return; }
+  S.pos.q = -1;
+  proximaPergunta();
+}
+
+function proximaPergunta(){
+  var g = grupoAtual(), it = instancia(g);
+  var q = S.pos.q;
+  do{ q++; }while(q < g.perguntas.length && !aplicavel(g.perguntas[q], it));
+  if(q >= g.perguntas.length){ fimDaInstancia(); return; }
+  S.pos.q = q;
+  mostrarPergunta();
+}
+
+function fimDaInstancia(){
+  var g = grupoAtual(), it = instancia(g);
+  var podeMais = g.lista && g.mais && (!g.maisSe || g.maisSe(it));
+  if(podeMais){ mostrarMais(); return; }
+  proximoGrupo();
+}
+
+function proximoGrupo(){
+  var anterior = grupoAtual();
+  var gi = S.pos.g + 1;
+
+  while(gi < ROTEIRO.length){
+    if(S.editandoSecao && ROTEIRO[gi].secao !== S.editandoSecao){ S.editandoSecao = null; ir("t-tudocerto"); return; }
+    break;
+  }
+  if(gi >= ROTEIRO.length){
+    S.editandoSecao = null;
+    var falta = faltandoObrigatorios();
+    if(falta.length){ ir("t-faltando"); return; }
+    ir("t-conferir");
+    return;
+  }
+
+  S.pos = {g:gi, inst:0, q:-1};
+  var novo = grupoAtual();
+  if(!S.editandoSecao && novo.secao !== anterior.secao){ ir("t-progresso"); return; }
+  entrarGrupo();
+}
+
+/* --- desenhar a pergunta --- */
+function mostrarPergunta(){
+  var g = grupoAtual(), p = perguntaAtual(), it = instancia(g);
+  if(!p){ proximaPergunta(); return; }
+
+  // ao trocar de pergunta, o rascunho anterior não pode sobrar no campo
+  var chave = S.pos.g + ":" + S.pos.inst + ":" + S.pos.q;
+  if(chave !== S.ultimaChave){ S.rascunho = ""; S.ultimaChave = chave; }
+
+  var obrigatoria = (S.pos.q === -1) ? true : ehObrig(p, it);
+  var sec = secaoInfo(g.secao);
+
+  $("#txtPergunta").textContent = p.texto;
+  $("#txtPerguntaEsc").textContent = p.texto;
+  $("#ajudaPergunta").innerHTML = p.ajuda + (obrigatoria ? ' <span class="obrig">Esta é obrigatória.</span>' : "");
+  $("#ajudaEsc").textContent = p.ajuda;
+
+  var etiqueta = sec.nome;
+  if(g.lista && S.pos.q >= 0){
+    if(g.id === "trabalho") etiqueta += " · " + (S.pos.inst + 1) + "º trabalho";
+    if(g.id === "estudo")   etiqueta += " · " + (S.pos.inst + 1) + "ª escola";
+    if(g.id === "cursos")   etiqueta += " · " + (S.pos.inst + 1) + "º curso";
+  }
+  $("#passoP").textContent = etiqueta;
+  $("#barraP").style.width = ((S.pos.g + 1) / ROTEIRO.length * 100) + "%";
+
+  var cx = $("#opcoesPergunta");
+  var temOpcoes = !!(p.opcoes && p.opcoes.length);
+  if(temOpcoes){
+    cx.innerHTML = p.opcoes.map(function(o){
+      return '<button class="cartao" data-opcao="' + o.replace(/"/g,"&quot;") + '"><span class="num">' +
+        '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"><path d="m4.5 12.5 5 5 10-11"/></svg>' +
+        '</span><span><b>' + o + '</b></span></button>';
+    }).join("");
+    cx.hidden = false;
+  }else if(p.atalhos && p.atalhos.length){
+    // resposta rápida sem precisar falar nem escrever
+    cx.innerHTML = p.atalhos.map(function(o){
+      return '<button class="cartao" data-opcao="' + o.replace(/"/g,"&quot;") +
+        '" style="border-color:var(--verde);background:var(--verde-suave)"><span class="num" style="background:var(--verde-bg);color:#fff">' +
+        '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"><path d="m4.5 12.5 5 5 10-11"/></svg>' +
+        '</span><span><b>' + o + '</b></span></button>';
+    }).join("");
+    cx.hidden = false;
+  }else{ cx.innerHTML = ""; cx.hidden = true; }
+  var escritaPrimeiro = !!p.escrever || !temMic() || S.modo === "ajuda";
+
+  var exB = $("#exemploPergunta"), exE = $("#exemploEsc");
+  var mostrarEx = (S.modo === "ajuda") && !!p.exemplo && !temOpcoes;
+  exB.hidden = !mostrarEx; exE.hidden = !mostrarEx;
+  if(mostrarEx){
+    exB.querySelector("b").textContent = p.exemplo;
+    exE.querySelector("b").textContent = p.exemplo;
+  }
+
+  $("#btnFalar").hidden = temOpcoes && !temMic();
+  $("#btnEscrever").hidden = false;
+  $("#btnFalar").className = "btn largura-total " + (escritaPrimeiro ? "btn--claro" : "btn--vermelho btn--mic");
+  $("#btnEscrever").className = "btn " + (escritaPrimeiro ? "btn--azul largura-total" : "btn--claro");
+  var acoes = $("#acoesPergunta");
+  if(escritaPrimeiro) acoes.insertBefore($("#btnEscrever"), $("#btnFalar"));
+  else acoes.insertBefore($("#btnFalar"), $("#btnEscrever"));
+  $("#btnPularAqui").hidden = obrigatoria;
+
+  ir("t-pergunta");
+}
+
+/* --- guardar resposta --- */
+function guardar(valor){
+  var g = grupoAtual(), p = perguntaAtual();
+  if(S.pos.q === -1){
+    S.portas[g.id] = valor;
+    if(g.porta.negativa && valor === g.porta.negativa){ proximoGrupo(); return; }
+    S.pos.q = -1;
+    proximaPergunta();
+    return;
+  }
+  instancia(g)[p.id] = valor;
+  if(S.conferindoFaltas){
+    var falta = faltandoObrigatorios();
+    if(falta.length){ ir("t-faltando"); return; }
+    S.conferindoFaltas = false;
+    ir("t-conferir");
+    return;
+  }
+  proximaPergunta();
+}
+
+function tratarResposta(texto){
+  var g = grupoAtual(), p = perguntaAtual(), it = instancia(g);
+  var obrigatoria = (S.pos.q === -1) ? true : ehObrig(p, it);
+  var v = validar(p, texto, obrigatoria);
+  if(v.ok){ S.rascunho = v.valor; ir("t-confirmar"); }
+  else{ S.rascunho = texto; mostrarFaltou(v, texto); }
+}
+
+function mostrarFaltou(v, texto){
+  $("#txtFaltou").textContent = v.titulo;
+  $("#subFaltou").textContent = v.msg;
+  var cx = $("#citacaoFaltou");
+  if(texto && String(texto).trim()){ cx.hidden = false; cx.textContent = "Eu entendi: “" + texto + "”"; }
+  else{ cx.hidden = true; }
+  S.faltouEscrever = !!v.escrever;
+  ir("t-faltou");
+}
+
+/* --- tela "quer adicionar mais?" --- */
+function mostrarMais(){
+  var g = grupoAtual();
+  $("#txtMais").textContent = g.mais.titulo;
+  $("#subMais").textContent = g.mais.sub;
+  $("#lblMaisSim").textContent = g.mais.sim;
+  $("#lblMaisNao").textContent = g.mais.nao;
+  var itens = (S.dados[g.id] || []).map(function(it, k){
+    var txt = g.resumo ? g.resumo(it) : "";
+    if(!txt) return "";
+    return '<div class="cartao cartao--estatico"><span class="num">' + (k + 1) + '</span><span><b>' + esc(txt) + '</b></span></div>';
+  }).filter(Boolean).join("");
+  $("#resumoMais").innerHTML = itens;
+  ir("t-mais");
+}
+$("#btnMaisSim").addEventListener("click", function(){
+  calar();
+  S.pos.inst = (S.dados[grupoAtual().id] || []).length;
+  instancia();
+  S.pos.q = -1;
+  proximaPergunta();
+});
+$("#btnMaisNao").addEventListener("click", function(){ calar(); proximoGrupo(); });
+
+/* --- obrigatórios faltando --- */
+function faltandoObrigatorios(){
+  var falta = [];
+  ROTEIRO.forEach(function(g, gi){
+    if(grupoPulado(g)) return;
+    if(!S.visitados[g.id]) return;
+    (S.dados[g.id] || []).forEach(function(it, inst){
+      g.perguntas.forEach(function(p, qi){
+        if(!aplicavel(p, it)) return;
+        if(!ehObrig(p, it)) return;
+        if(it[p.id]) return;
+        falta.push({g:gi, inst:inst, q:qi, texto:p.texto, secao:g.secao});
+      });
+    });
+  });
+  return falta;
+}
+
+function montarFaltando(){
+  var falta = faltandoObrigatorios();
+  $("#listaFaltando").innerHTML = falta.map(function(f){
+    return '<div class="cartao cartao--estatico"><span class="num" style="background:var(--ambar-suave);color:var(--ambar)">' +
+      '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.3" stroke-linecap="round"><circle cx="12" cy="12" r="9"/><path d="M12 8v5M12 16.5v.01"/></svg>' +
+      '</span><span><b>' + esc(f.texto) + '</b><small>' + secaoInfo(f.secao).nome + '</small></span></div>';
+  }).join("");
+  return falta;
+}
+$("#btnIrFaltando").addEventListener("click", function(){
+  var falta = faltandoObrigatorios();
+  if(!falta.length){ S.conferindoFaltas = false; ir("t-conferir"); return; }
+  calar();
+  S.conferindoFaltas = true;
+  S.pos = {g:falta[0].g, inst:falta[0].inst, q:falta[0].q};
+  mostrarPergunta();
+});
+
+/* ============================================================
+   9. EVENTOS DAS TELAS DE RESPOSTA
+   ============================================================ */
+$("#btnFalar").addEventListener("click", falarResposta);
+$("#btnEscrever").addEventListener("click", function(){ calar(); ir("t-escrever"); });
+$("#btnOuvirPergunta").addEventListener("click", function(){
+  var p = perguntaAtual();
+  if(p) falar(p.texto + ". " + p.ajuda + (p.opcoes ? " " + p.opcoes.join(", ") + "." : ""));
+});
+$("#btnPularAqui").addEventListener("click", function(){
+  calar();
+  var g = grupoAtual(), p = perguntaAtual(), it = instancia(g);
+  if(S.pos.q === -1 || ehObrig(p, it)){ falar("Esta informação é obrigatória."); return; }
+  guardar("");
+});
+document.addEventListener("click", function(e){
+  var b = e.target.closest("[data-opcao]");
+  if(!b) return;
+  calar();
+  tratarResposta(b.getAttribute("data-opcao"));
+});
+
+$("#btnParar").addEventListener("click", function(){
+  pararGravacao();
+  var t = textoOuvido.trim();
+  if(!t){ ir("t-erro"); return; }
+  S.rascunho = t;
+  ir("t-processando");
+});
+$("#btnMicDeNovo").addEventListener("click", function(){ iniciarGravacao(); });
+$("#btnOuvindoEscrever").addEventListener("click", function(){ pararGravacao(); calar(); ir("t-escrever"); });
+
+var campo = $("#campoResp"), campoDDD = $("#campoDDD"), campoNum = $("#campoNum");
+
+function soDigitos(el, max){
+  el.value = el.value.replace(/\D/g,"").slice(0, max);
+}
+function validarCampo(){
+  var p = perguntaAtual();
+  if(p && p.tipo === "telefone"){
+    var d = campoDDD.value.replace(/\D/g,""), n = campoNum.value.replace(/\D/g,"");
+    $("#btnSalvarEsc").disabled = !(d.length === 2 && n.length >= 8);
+    return;
+  }
+  $("#btnSalvarEsc").disabled = campo.value.trim().length < 1;
+}
+campo.addEventListener("input", validarCampo);
+campoDDD.addEventListener("input", function(){
+  soDigitos(campoDDD, 2);
+  if(campoDDD.value.length === 2){ try{ campoNum.focus(); }catch(e){} }
+  validarCampo();
+});
+campoNum.addEventListener("input", function(){ soDigitos(campoNum, 10); validarCampo(); });
+
+$("#btnSalvarEsc").addEventListener("click", function(){
+  var p = perguntaAtual(), t;
+  if(p && p.tipo === "telefone"){
+    t = campoDDD.value.replace(/\D/g,"") + campoNum.value.replace(/\D/g,"");
+  }else{
+    t = campo.value.trim();
+  }
+  if(!t) return;
+  tratarResposta(t);
+});
+$("#btnVoltarFala").addEventListener("click", falarResposta);
+
+$("#btnOuvirResp").addEventListener("click", function(){ falar(S.rascunho); });
+$("#btnIssoMesmo").addEventListener("click", function(){ calar(); guardar(S.rascunho); });
+$("#btnRegravar").addEventListener("click", function(){
+  var p = perguntaAtual();
+  if(p && (p.opcoes || p.escrever || !temMic())){ calar(); mostrarPergunta(); return; }
+  falarResposta();
+});
+
+$("#btnFaltouFalar").addEventListener("click", falarResposta);
+$("#btnFaltouEscrever").addEventListener("click", function(){ calar(); ir("t-escrever"); });
+$("#btnTentarDeNovo").addEventListener("click", falarResposta);
+$("#btnEscreverErro").addEventListener("click", function(){ calar(); ir("t-escrever"); });
+$("#btnPularErro").addEventListener("click", function(){
+  var g = grupoAtual(), p = perguntaAtual(), it = instancia(g);
+  if(S.pos.q === -1 || ehObrig(p, it)){ falar("Esta informação é obrigatória para o currículo."); return; }
+  guardar("");
+});
+
+/* --- microfone --- */
+$("#btnPermitir").addEventListener("click", function(){
+  var seguir = function(){ ir("t-como"); };
+  if(navigator.mediaDevices && navigator.mediaDevices.getUserMedia){
+    navigator.mediaDevices.getUserMedia({audio:true}).then(function(fluxo){
+      fluxo.getTracks().forEach(function(t){ t.stop(); });
+      S.micOk = true; seguir();
+    }).catch(function(err){
+      S.micOk = false;
+      $("#txtAvisoMic").textContent = dentroDeQuadro
+        ? "Esta janela não tem permissão para usar o microfone. Dá para continuar escrevendo, ou abrir o link numa aba do navegador para falar."
+        : ((err && err.name === "NotAllowedError")
+            ? "O microfone foi bloqueado. Dá para continuar escrevendo, ou liberar no cadeado ao lado do endereço."
+            : "Não encontrei um microfone neste aparelho. Você pode continuar escrevendo as respostas.");
+      $("#avisoMic").hidden = false;
+      setTimeout(seguir, 3000);
+    });
+  }else{
+    S.micOk = false;
+    $("#txtAvisoMic").textContent = "Este navegador não permite gravar voz. Você pode continuar escrevendo as respostas.";
+    $("#avisoMic").hidden = false;
+    setTimeout(seguir, 3000);
+  }
+});
+$("#btnAgoraNao").addEventListener("click", function(){ S.micOk = false; ir("t-como"); });
+
+$$("[data-modo]").forEach(function(b){
+  b.addEventListener("click", function(){
+    S.modo = b.getAttribute("data-modo");
+    aplicarModo();
+    zerar();
+    entrarGrupo();
+  });
+});
+
+/* --- progresso --- */
+function secaoPronta(id){
+  var grupos = ROTEIRO.filter(function(g){ return g.secao === id; });
+  if(!grupos.every(function(g){ return S.visitados[g.id]; })) return false;
+  return !faltandoObrigatorios().some(function(f){ return f.secao === id; });
+}
+function montarProgresso(){
+  var atual = grupoAtual() ? grupoAtual().secao : null;
+  $("#listaSecoes").innerHTML = SECOES.map(function(sec){
+    var pronto = secaoPronta(sec.id);
+    var agora = (sec.id === atual) && !pronto;
+    var estado = pronto ? "Pronto" : (agora ? "Fazendo agora" : "Falta fazer");
+    var cls = pronto ? "pronto" : (agora ? "agora" : "");
+    return '<div class="secao-item ' + cls + '"><span class="bolha">' +
+      '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">' + sec.icone + '</svg>' +
+      '</span><span><b>' + sec.nome + '</b><small>' + estado + '</small></span></div>';
+  }).join("");
+  var feitas = SECOES.filter(function(s){ return secaoPronta(s.id); }).length;
+  setTimeout(function(){ $("#barraProg").style.width = (feitas / SECOES.length * 100) + "%"; }, 80);
+  return feitas;
+}
+$("#btnContinuar").addEventListener("click", function(){ calar(); entrarGrupo(); });
+
+/* ============================================================
+   10. MONTAGEM DO CURRÍCULO
+   ============================================================ */
+function esc(t){ return String(t == null ? "" : t).replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;"); }
+function pes(id){ return (S.dados.pessoais && S.dados.pessoais[0] && S.dados.pessoais[0][id]) || ""; }
+function con(id){ return (S.dados.contato && S.dados.contato[0] && S.dados.contato[0][id]) || ""; }
+
+function cvBase(){
+  var trabalhos = grupoPulado(ROTEIRO[1]) ? [] :
+    (S.dados.trabalho || []).filter(function(it){ return it.cargo || it.empresa; });
+  var estudos = (S.dados.estudo || []).filter(function(it){ return it.escolaridade && it.escolaridade !== "Não estudei"; });
+  var cursos = grupoPulado(ROTEIRO[3]) ? [] :
+    (S.dados.cursos || []).map(function(it){ return it.curso; }).filter(Boolean);
+  var cnh = pes("cnh");
+  return {
+    nome: pes("nome") || "Seu nome",
+    titulo: pes("objetivo") || "Profissional",
+    local: [pes("cidade"), pes("estado")].filter(Boolean).join(" · "),
+    idade: pes("idade"),
+    cnh: (cnh && cnh !== "Não tenho") ? cnh.replace(/^Sim,\s*/,"Carteira de motorista ") : "",
+    modalidade: pes("modalidade"),
+    primeiroEmprego: trabalhos.length === 0,
+    resumo:"",
+    experiencia: trabalhos.map(function(it){
+      return {cargo:it.cargo || "", empresa:it.empresa || "", periodo:it.periodo || "",
+              atividades:it.atividades || "", maisSobre:it.maisSobre || ""};
+    }),
+    formacao: estudos.map(function(it){
+      return [it.escolaridade, it.instituicao, it.situacao].filter(Boolean).join(" · ");
+    }),
+    cursos: cursos,
+    idiomas: (S.dados.idiomas && S.dados.idiomas[0] && S.dados.idiomas[0].idiomas) || "",
+    telefone: con("telefone"),
+    email: con("email"),
+    linkedin: con("temLinkedin") === "Tenho LinkedIn" ? con("linkedin") : ""
+  };
+}
+
+function renderCV(cv){
+  var h = "";
+  h += '<h2>' + esc(cv.nome) + '</h2>';
+  h += '<p class="cargo">' + esc(cv.titulo) + (cv.local ? " · " + esc(cv.local) : "") + '</p>';
+  if(cv.resumo) h += '<p>' + esc(cv.resumo) + '</p>';
+  if(cv.experiencia && cv.experiencia.length){
+    h += '<h3>Experiência</h3>';
+    cv.experiencia.forEach(function(e){
+      h += '<p class="item-t">' + esc(e.cargo) + (e.empresa ? " — " + esc(e.empresa) : "") + '</p>';
+      if(e.periodo) h += '<p class="item-s">' + esc(e.periodo) + '</p>';
+      if(e.atividades) h += '<p>' + esc(e.atividades) + '</p>';
+      if(e.maisSobre) h += '<p>' + esc(e.maisSobre) + '</p>';
+    });
+  }else if(cv.primeiroEmprego){
+    h += '<h3>Experiência</h3><p>Em busca do primeiro emprego.</p>';
+  }
+  if(cv.formacao && cv.formacao.length){
+    h += '<h3>Formação</h3><ul>' + cv.formacao.map(function(f){ return '<li>' + esc(f) + '</li>'; }).join("") + '</ul>';
+  }
+  if(cv.cursos && cv.cursos.length){
+    h += '<h3>Cursos</h3><ul>' + cv.cursos.map(function(c){ return '<li>' + esc(c) + '</li>'; }).join("") + '</ul>';
+  }
+  if(cv.idiomas) h += '<h3>Idiomas</h3><p>' + esc(cv.idiomas) + '</p>';
+  h += '<h3>Contato</h3>';
+  if(cv.telefone) h += '<p>Telefone e WhatsApp: ' + esc(cv.telefone) + '</p>';
+  if(cv.email) h += '<p>E-mail: ' + esc(cv.email) + '</p>';
+  if(cv.linkedin) h += '<p>LinkedIn: ' + esc(cv.linkedin) + '</p>';
+  var extras = [cv.cnh, cv.modalidade].filter(Boolean).join(" · ");
+  if(extras) h += '<p class="item-s">' + esc(extras) + '</p>';
+  return h;
+}
+
+function textoDoCV(cv){
+  var p = [];
+  p.push(cv.nome + (cv.local ? ", de " + cv.local : "") + ".");
+  if(cv.titulo) p.push("Procura trabalho como " + cv.titulo + ".");
+  if(cv.resumo) p.push(cv.resumo);
+  if(cv.experiencia.length){
+    cv.experiencia.forEach(function(e){
+      p.push("Trabalhou como " + e.cargo + (e.empresa ? " na " + e.empresa : "") +
+             (e.periodo ? ", por " + e.periodo : "") + ". " + (e.atividades || ""));
+    });
+  }else if(cv.primeiroEmprego){ p.push("Está em busca do primeiro emprego."); }
+  if(cv.formacao.length) p.push("Estudos: " + cv.formacao.join(". ") + ".");
+  if(cv.cursos.length) p.push("Cursos: " + cv.cursos.join(", ") + ".");
+  if(cv.cnh) p.push(cv.cnh + ".");
+  if(cv.telefone) p.push("Telefone e WhatsApp: " + cv.telefone + ".");
+  if(cv.email) p.push("E-mail: " + cv.email + ".");
+  return p.join(" ");
+}
+
+/* ============================================================
+   11. LEITURA EM VOZ ALTA
+   ============================================================ */
+var lendo = false, filaLeitura = [];
+function blocosLeitura(){
+  var cv = cvBase();
+  return [
+    {nome:"Dados Pessoais", texto:[cv.nome, cv.idade ? cv.idade + " anos" : "", cv.local,
+      cv.titulo ? "Procurando trabalho como " + cv.titulo : "", cv.cnh].filter(Boolean).join(". ")},
+    {nome:"Experiência de Trabalho", texto: cv.experiencia.length
+      ? cv.experiencia.map(function(e){
+          return [e.cargo, e.empresa ? "na " + e.empresa : "", e.periodo ? "por " + e.periodo : "", e.atividades].filter(Boolean).join(". ");
+        }).join(". Também ")
+      : "Em busca do primeiro emprego"},
+    {nome:"Estudos e Cursos", texto:[cv.formacao.join(". "), cv.cursos.join(", "), cv.idiomas].filter(Boolean).join(". ") || "Sem informações"},
+    {nome:"Como Falar Comigo", texto:[cv.telefone ? "Telefone e WhatsApp " + cv.telefone : "",
+      cv.email ? "E-mail " + cv.email : "", cv.linkedin ? "LinkedIn " + cv.linkedin : ""].filter(Boolean).join(". ") || "Sem contato informado"}
+  ];
+}
+function montarLeitura(){
+  filaLeitura = blocosLeitura();
+  $("#listaLeitura").innerHTML = filaLeitura.map(function(b, k){
+    return '<div class="cartao cartao--estatico" data-bloco="' + k + '"><span><b>' + esc(b.nome) + '</b><small>' + esc(b.texto || "—") + '</small></span></div>';
+  }).join("");
+}
+function destacarBloco(k){
+  $$("#listaLeitura [data-bloco]").forEach(function(el, j){
+    el.style.borderColor = (j === k) ? "var(--azul)" : "var(--borda)";
+    el.style.background  = (j === k) ? "var(--azul-suave)" : "var(--papel)";
+  });
+  $("#passoLeitura").textContent = "Lendo parte " + (k + 1) + " de " + filaLeitura.length;
+  $("#barraLeitura").style.width = ((k + 1) / filaLeitura.length * 100) + "%";
+}
+function lerBloco(k){
+  if(!lendo) return;
+  if(k >= filaLeitura.length){ lendo = false; ir("t-tudocerto"); return; }
+  destacarBloco(k);
+  var b = filaLeitura[k];
+  falar(b.nome + ". " + (b.texto || "Não informado"), function(){
+    if(lendo) setTimeout(function(){ lerBloco(k + 1); }, 320);
+  });
+}
+function comecarLeitura(volta){
+  montarLeitura(); ir("t-lendo", volta); lendo = true;
+  setTimeout(function(){ lerBloco(0); }, 420);
+}
+$("#btnLerCV").addEventListener("click", function(){ comecarLeitura(false); });
+$("#btnOuvirTudo").addEventListener("click", function(){ comecarLeitura(true); });
+$("#btnPararLeitura").addEventListener("click", function(){ lendo = false; calar(); ir("t-tudocerto"); });
+
+/* --- corrigir --- */
+function montarCorrigir(){
+  $("#listaCorrigir").innerHTML = SECOES.map(function(sec){
+    return '<button class="cartao" data-corrigir="' + sec.id + '"><span class="num">' +
+      '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">' + sec.icone + '</svg>' +
+      '</span><span><b>' + sec.nome + '</b><small>Tocar para mudar esta parte</small></span>' +
+      '<span class="num" style="margin-left:auto;background:var(--ambar-suave);color:var(--ambar)">' +
+      '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 20h4l10-10-4-4L4 16z"/></svg>' +
+      '</span></button>';
+  }).join("");
+}
+document.addEventListener("click", function(e){
+  var b = e.target.closest("[data-corrigir]");
+  if(!b) return;
+  var idSec = b.getAttribute("data-corrigir");
+  for(var k = 0; k < ROTEIRO.length; k++){
+    if(ROTEIRO[k].secao === idSec){
+      calar();
+      S.editandoSecao = idSec;
+      S.portas[ROTEIRO[k].id] = undefined;
+      S.pos = {g:k, inst:0, q:-1};
+      entrarGrupo();
+      return;
+    }
+  }
+});
+$("#btnMudarAlgo").addEventListener("click", function(){ calar(); montarCorrigir(); ir("t-corrigir"); });
+
+/* ============================================================
+   12. ORGANIZAÇÃO DO CURRÍCULO
+   ============================================================ */
+var REGRAS = [
+  "Você organiza currículos para pessoas com pouca escolaridade no Brasil.",
+  "Use SOMENTE as informações fornecidas. É proibido inventar empresas, cargos, datas, cursos, resultados ou qualquer habilidade que a pessoa não tenha dito.",
+  "Corrija a ortografia, organize as frases e use um português profissional, porém simples e direto.",
+  "Se um campo estiver vazio, devolva string vazia ou lista vazia. Nunca preencha com exemplo.",
+  "Se a pessoa nunca trabalhou, deixe experiencia como lista vazia e escreva um resumo focado no objetivo e nos estudos.",
+  "Não invente carteira de motorista nem idiomas.",
+  "Escreva tudo em português do Brasil."
+].join(" ");
+
+function promptCV(){
+  var b = cvBase();
+  var linhas = [];
+  linhas.push("Nome: " + b.nome);
+  linhas.push("Cidade e estado: " + b.local);
+  linhas.push("Idade: " + (b.idade || "(não informou)"));
+  linhas.push("Vaga que procura: " + b.titulo);
+  linhas.push("Carteira de motorista: " + (b.cnh || "(não tem ou não informou)"));
+  linhas.push("Disponibilidade: " + (b.modalidade || "(não informou)"));
+  if(b.experiencia.length){
+    b.experiencia.forEach(function(e, k){
+      linhas.push("Trabalho " + (k+1) + ": função " + e.cargo + "; local " + e.empresa +
+        "; tempo " + e.periodo + "; o que fazia: " + e.atividades +
+        (e.maisSobre ? "; mais sobre esse trabalho: " + e.maisSobre : ""));
+    });
+  }else{ linhas.push("Experiência: nunca trabalhou, procura o primeiro emprego."); }
+  b.formacao.forEach(function(f, k){ linhas.push("Estudo " + (k+1) + ": " + f); });
+  b.cursos.forEach(function(c, k){ linhas.push("Curso " + (k+1) + ": " + c); });
+  if(b.idiomas) linhas.push("Idiomas: " + b.idiomas);
+  linhas.push("Telefone: " + b.telefone);
+  linhas.push("E-mail: " + b.email);
+  if(b.linkedin) linhas.push("LinkedIn: " + b.linkedin);
+
+  return REGRAS + "\n\nInformações da pessoa:\n" + linhas.join("\n") +
+    "\n\nResponda SOMENTE com um objeto JSON neste formato, sem nenhum texto antes ou depois:\n" +
+    '{"titulo":"","resumo":"","experiencia":[{"cargo":"","empresa":"","periodo":"","atividades":"","maisSobre":""}],"formacao":[""],"cursos":[""]}\n' +
+    '"titulo" é a vaga que a pessoa procura, em poucas palavras. "resumo" tem no máximo duas frases e só usa o que foi dito. "atividades" vira uma frase profissional descrevendo o que a pessoa fazia.';
+}
+
+/*
+  Ponto de integração com a API do projeto.
+  A implementação final deve disponibilizar uma função assíncrona chamada
+  window.processarCurriculoComIA, que recebe o texto de instruções e retorna
+  o objeto JSON com o currículo organizado. Sem a API, o protótipo preserva
+  os dados informados e conclui normalmente o fluxo de demonstração.
+*/
+function solicitarOrganizacaoIA(instrucoes){
+  if(typeof window.processarCurriculoComIA !== "function") return Promise.resolve(null);
+  return Promise.resolve(window.processarCurriculoComIA(instrucoes));
+}
+
+function prepararCV(){
+  var pronto = false;
+  var espera = new Promise(function(res){ setTimeout(res, 2600); });
+  function finalizar(cv){
+    if(pronto) return;
+    pronto = true;
+    S.cv = cv;
+    espera.then(function(){
+      $("#previaCV").innerHTML = renderCV(cv);
+      ir("t-pronto");
+      soltarConfete();
+      setTimeout(function(){ falar("Seu currículo ficou pronto!"); }, 500);
+    });
+  }
+  var base = cvBase();
+  solicitarOrganizacaoIA(promptCV()).then(function(d){
+    if(!d){ finalizar(base); return; }
+      finalizar({
+        nome: base.nome,
+        titulo: (d && d.titulo) || base.titulo,
+        local: base.local,
+        idade: base.idade,
+        cnh: base.cnh,
+        modalidade: base.modalidade,
+        primeiroEmprego: base.primeiroEmprego,
+        resumo: (d && d.resumo) || "",
+        experiencia: (d && Array.isArray(d.experiencia)) ? d.experiencia : base.experiencia,
+        formacao: (d && Array.isArray(d.formacao)) ? d.formacao.filter(Boolean) : base.formacao,
+        cursos: (d && Array.isArray(d.cursos)) ? d.cursos.filter(Boolean) : base.cursos,
+        idiomas: base.idiomas, telefone: base.telefone, email: base.email, linkedin: base.linkedin
+      });
+  }).catch(function(){ finalizar(base); });
+}
+
+$("#btnSimCerto").addEventListener("click", function(){
+  calar(); lendo = false;
+  if(faltandoObrigatorios().length){ ir("t-faltando"); return; }
+  ir("t-preparando");
+  prepararCV();
+});
+
+function soltarConfete(){
+  if(reduzir) return;
+  var cx = $("#confete");
+  cx.innerHTML = "";
+  var cores = ["var(--ambar)","var(--verde-bg)","var(--azul-bg)","var(--vermelho-bg)"];
+  for(var k = 0; k < 34; k++){
+    var i = document.createElement("i");
+    i.style.left = (Math.random() * 100) + "%";
+    i.style.background = cores[k % cores.length];
+    i.style.animationDelay = (Math.random() * 0.9) + "s";
+    i.style.animationDuration = (2.2 + Math.random() * 1.4) + "s";
+    cx.appendChild(i);
+  }
+  setTimeout(function(){ cx.innerHTML = ""; }, 4200);
+}
+$("#btnOuvirCV").addEventListener("click", function(){ falar(textoDoCV(S.cv || cvBase())); });
+
+/* ============================================================
+   13. PDF / WHATSAPP / IMPRIMIR
+   ============================================================ */
+function avisar(msg){ $("#txtAvisoEnvio").textContent = msg; $("#avisoEnvio").hidden = false; }
+
+function gerarPDF(){
+  var cv = S.cv || cvBase();
+  if(!window.jspdf || !window.jspdf.jsPDF) return null;
+  var doc = new window.jspdf.jsPDF({unit:"pt", format:"a4"});
+  var L = 56, y = 70, W = 595 - L * 2;
+  function linha(txt, tam, estilo, cor, espaco){
+    doc.setFont("helvetica", estilo || "normal");
+    doc.setFontSize(tam);
+    doc.setTextColor(cor || "#17242B");
+    var ls = doc.splitTextToSize(String(txt), W);
+    for(var k = 0; k < ls.length; k++){
+      if(y > 780){ doc.addPage(); y = 70; }
+      doc.text(ls[k], L, y);
+      y += tam + 4;
+    }
+    y += (espaco || 0);
+  }
+  function titulo(t){
+    y += 10;
+    linha(t.toUpperCase(), 10, "bold", "#1E6B45", 2);
+    doc.setDrawColor("#D8CDB6"); doc.setLineWidth(1);
+    doc.line(L, y - 8, L + W, y - 8);
+    y += 4;
+  }
+  linha(cv.nome, 22, "bold", "#17242B", 2);
+  linha([cv.titulo, cv.local].filter(Boolean).join("  ·  "), 11, "normal", "#17457E", 6);
+  if(cv.resumo) linha(cv.resumo, 11, "normal", "#17242B", 4);
+  if(cv.experiencia && cv.experiencia.length){
+    titulo("Experiência");
+    cv.experiencia.forEach(function(e){
+      linha([e.cargo, e.empresa].filter(Boolean).join(" — "), 12, "bold", "#17242B", 0);
+      if(e.periodo) linha(e.periodo, 10, "normal", "#54646E", 0);
+      if(e.atividades) linha(e.atividades, 11, "normal", "#17242B", 0);
+      if(e.maisSobre) linha(e.maisSobre, 11, "normal", "#17242B", 4);
+    });
+  }else if(cv.primeiroEmprego){
+    titulo("Experiência");
+    linha("Em busca do primeiro emprego.", 11, "normal", "#17242B", 0);
+  }
+  if(cv.formacao && cv.formacao.length){
+    titulo("Formação");
+    cv.formacao.forEach(function(f){ linha("• " + f, 11, "normal", "#17242B", 0); });
+  }
+  if(cv.cursos && cv.cursos.length){
+    titulo("Cursos");
+    cv.cursos.forEach(function(c){ linha("• " + c, 11, "normal", "#17242B", 0); });
+  }
+  if(cv.idiomas){ titulo("Idiomas"); linha(cv.idiomas, 11, "normal", "#17242B", 0); }
+  titulo("Contato");
+  if(cv.telefone) linha("Telefone e WhatsApp: " + cv.telefone, 11, "normal", "#17242B", 0);
+  if(cv.email) linha("E-mail: " + cv.email, 11, "normal", "#17242B", 0);
+  if(cv.linkedin) linha("LinkedIn: " + cv.linkedin, 11, "normal", "#17242B", 0);
+  var extras = [cv.cnh, cv.modalidade].filter(Boolean).join("  ·  ");
+  if(extras) linha(extras, 10, "normal", "#54646E", 0);
+  return doc;
+}
+
+function nomeArquivo(){
+  var n = (S.cv && S.cv.nome ? S.cv.nome : "curriculo").normalize("NFD")
+    .replace(/[\u0300-\u036f]/g,"").replace(/[^a-zA-Z0-9]+/g,"-").replace(/^-|-$/g,"").toLowerCase();
+  return "curriculo-" + (n || "fala-curriculo") + ".pdf";
+}
+
+$("#btnBaixar").addEventListener("click", function(){
+  $("#avisoEnvio").hidden = true;
+  var doc = gerarPDF();
+  if(!doc){ avisar("Não consegui montar o PDF agora. Tente imprimir a página."); return; }
+  var blob = doc.output("blob");
+  try{
+    var url = URL.createObjectURL(blob);
+    var a = document.createElement("a");
+    a.href = url; a.download = nomeArquivo();
+    document.body.appendChild(a); a.click(); a.remove();
+    setTimeout(function(){ URL.revokeObjectURL(url); }, 4000);
+    avisar("Currículo guardado no aparelho.");
+    falar("Pronto. Seu currículo foi guardado no aparelho.");
+  }catch(e){ avisar("Este navegador bloqueou o download. Use o botão de imprimir."); }
+});
+
+$("#btnImprimir").addEventListener("click", function(){
+  $("#avisoEnvio").hidden = true;
+  var doc = gerarPDF();
+  if(doc){
+    try{ var w = window.open(doc.output("bloburl"), "_blank"); if(w) return; }catch(e){}
+  }
+  window.print();
+});
+
+$("#btnWhats").addEventListener("click", function(){
+  $("#avisoEnvio").hidden = true;
+  var cv = S.cv || cvBase();
+  var doc = gerarPDF();
+  var blob = doc ? doc.output("blob") : null;
+  var arq = null;
+  try{ if(blob) arq = new File([blob], nomeArquivo(), {type:"application/pdf"}); }catch(e){}
+  if(arq && navigator.canShare && navigator.canShare({files:[arq]})){
+    navigator.share({files:[arq], title:"Meu currículo", text:"Segue o meu currículo."})
+      .then(function(){ falar("Currículo enviado."); })
+      .catch(function(){ abrirWhatsTexto(cv); });
+  }else{ abrirWhatsTexto(cv); }
+});
+function abrirWhatsTexto(cv){
+  var texto = "*" + cv.nome + "*\n" + [cv.titulo, cv.local].filter(Boolean).join(" · ") + "\n\n" + textoDoCV(cv);
+  var w = window.open("https://wa.me/?text=" + encodeURIComponent(texto), "_blank", "noopener");
+  if(!w) avisar("O navegador bloqueou a abertura do WhatsApp. Guarde o PDF no aparelho e envie pelo aplicativo.");
+  else avisar("No protótipo, o WhatsApp recebe o currículo em texto. O envio do PDF em anexo entra na versão final.");
+}
+
+$("#btnRecomecar").addEventListener("click", function(){
+  pararTudo(); zerar();
+  $("#avisoEnvio").hidden = true;
+  ir("t-inicio", true);
+});
+
+/* ============================================================
+   14. OFFLINE
+   ============================================================ */
+var telaAntes = null;
+window.addEventListener("offline", function(){
+  if(S.tela !== "t-offline"){ telaAntes = S.tela; pararTudo(); ir("t-offline"); }
+});
+$("#btnTentarNet").addEventListener("click", function(){
+  if(navigator.onLine !== false) ir(telaAntes || "t-inicio", true);
+  else falar("A internet ainda não voltou. Suas respostas continuam guardadas.");
+});
+
+/* ============================================================
+   15. AO ENTRAR EM CADA TELA
+   ============================================================ */
+var timerFrases = null, timerAuto = null, timerRepetir = null;
+var FRASES = ["Já estou quase terminando…","Conferindo as palavras…","Só mais um instante…"];
+
+/* Modo "sozinho": se a pessoa não agir, o app repete a pergunta por conta própria. */
+function agendarRepeticao(){
+  clearTimeout(timerRepetir);
+  if(S.modo !== "sozinho" || S.tela !== "t-pergunta") return;
+  if(S.repeticoes >= 2) return;
+  timerRepetir = setTimeout(function(){
+    if(S.tela !== "t-pergunta" || S.modo !== "sozinho") return;
+    var p = perguntaAtual();
+    if(!p) return;
+    S.repeticoes++;
+    var extra = (S.repeticoes >= 2)
+      ? " Quando estiver pronto, toque no botão vermelho e fale a sua resposta."
+      : "";
+    falar("Vou repetir. " + p.texto + ". " + p.ajuda + extra, agendarRepeticao);
+  }, 11000);
+}
+function cancelarRepeticao(){ clearTimeout(timerRepetir); }
+document.addEventListener("pointerdown", cancelarRepeticao);
+
+function aplicarModo(){
+  document.body.classList.toggle("modo-ajuda", S.modo === "ajuda");
+  $("#icoModo").innerHTML = (S.modo === "ajuda")
+    ? '<circle cx="9" cy="8" r="3.4"/><circle cx="17" cy="9" r="2.8"/><path d="M3 20a6 6 0 0 1 12 0M15.5 20a5 5 0 0 1 5.5-4.8"/>'
+    : '<circle cx="12" cy="8" r="4"/><path d="M4 21a8 8 0 0 1 16 0"/>';
+  $("#btnModo").setAttribute("title", S.modo === "ajuda" ? "Usando com ajuda de alguém" : "Usando sozinho");
+}
+$("#btnModo").addEventListener("click", function(){
+  S.modo = (S.modo === "ajuda") ? "sozinho" : "ajuda";
+  aplicarModo();
+  cancelarRepeticao();
+  falar(S.modo === "ajuda"
+    ? "Modo com ajuda. O botão de escrever fica em primeiro lugar e cada pergunta mostra um exemplo."
+    : "Modo sozinho. Eu falo tudo devagar e o botão de falar fica em primeiro lugar.");
+  if(S.tela === "t-pergunta") mostrarPergunta();
+});
+
+function aoEntrar(id){
+  clearInterval(timerFrases);
+  clearTimeout(timerAuto);
+  clearTimeout(timerRepetir);
+  if(id !== "t-ouvindo") pararGravacao();
+
+  switch(id){
+    case "t-inicio":
+      falar("Fala Currículo. O jeito fácil de fazer o seu currículo usando só a sua voz. Aperte o botão azul para começar.");
+      break;
+    case "t-microfone":
+      falar("Preciso ouvir a sua voz para te ajudar. Como eu escrevo o que você fala, preciso da sua permissão para usar o microfone do aparelho.");
+      break;
+    case "t-como":
+      falar("Como funciona. Um: você fala e me conta sobre o seu trabalho. Dois: o app repete para você conferir. Três: o seu currículo fica pronto em PDF.");
+      break;
+    case "t-modo":
+      falar("Como você prefere usar? Vou fazer sozinho, ou alguém vai me ajudar?");
+      break;
+    case "t-pergunta":
+      var p = perguntaAtual();
+      if(p){
+        if(S.modo === "ajuda"){
+          falar(p.texto);
+        }else{
+          S.repeticoes = 0;
+          falar(p.texto + ". " + p.ajuda + (p.opcoes ? " " + p.opcoes.join(", ") + "." : ""), agendarRepeticao);
+        }
+      }
+      break;
+    case "t-ouvindo": break;
+    case "t-escrever":
+      var pe = perguntaAtual();
+      var ehTel = pe && pe.tipo === "telefone";
+      campo.hidden = !!ehTel;
+      $("#linhaTel").hidden = !ehTel;
+      $("#rotuloCampo").setAttribute("for", ehTel ? "campoDDD" : "campoResp");
+      $("#rotuloCampo").textContent = ehTel ? "Digite o DDD e depois o número" : "Sua resposta";
+      if(ehTel){
+        var pre = String(S.rascunho || "").replace(/\D/g,"");
+        if(pre.length > 11) pre = pre.slice(-11);
+        campoDDD.value = pre.slice(0,2);
+        campoNum.value = pre.slice(2);
+      }else{
+        campo.value = S.rascunho || "";
+      }
+      $("#txtPerguntaEsc").textContent = pe ? pe.texto : "";
+      $("#ajudaEsc").textContent = pe ? pe.ajuda : "";
+      validarCampo();
+      setTimeout(function(){ try{ (ehTel ? campoDDD : campo).focus(); }catch(e){} }, 380);
+      break;
+    case "t-processando":
+      var n1 = 0;
+      $("#fraseProc").textContent = FRASES[0];
+      timerFrases = setInterval(function(){ n1 = (n1 + 1) % FRASES.length; $("#fraseProc").textContent = FRASES[n1]; }, 1100);
+      timerAuto = setTimeout(function(){ tratarResposta(S.rascunho); }, 2000);
+      break;
+    case "t-confirmar":
+      $("#citacao").textContent = "“" + (S.rascunho || "") + "”";
+      falar("Está certo? Eu entendi assim: " + S.rascunho);
+      break;
+    case "t-faltou":
+      falar($("#txtFaltou").textContent + ". " + $("#subFaltou").textContent, function(){
+        if(S.tela === "t-faltou" && S.faltouEscrever) ir("t-escrever");
+      });
+      break;
+    case "t-erro":
+      var ge = grupoAtual(), pq = perguntaAtual();
+      $("#btnPularErro").hidden = (S.pos.q === -1) || !pq || ehObrig(pq, instancia(ge));
+      falar("Não consegui entender. Vamos tentar mais uma vez? Fale um pouco mais devagar e perto do aparelho.");
+      break;
+    case "t-mais":
+      falar($("#txtMais").textContent);
+      break;
+    case "t-progresso":
+      var feitas = montarProgresso();
+      falar("Muito bem! Você já terminou " + feitas + " de " + SECOES.length + " partes. Vamos continuar?");
+      break;
+    case "t-conferir":
+      falar("Vamos conferir o seu currículo? Eu vou ler tudo em voz alta para você ouvir e ver se está correto.");
+      break;
+    case "t-tudocerto":
+      falar("Está tudo certo com as informações?");
+      break;
+    case "t-corrigir":
+      falar("Toque na parte que você quer mudar.");
+      break;
+    case "t-faltando":
+      var falta = montarFaltando();
+      falar("Ainda falta " + falta.length + " informação" + (falta.length > 1 ? "ões" : "") + " que o currículo precisa ter. Vamos responder agora?");
+      break;
+    case "t-preparando":
+      var m = 0;
+      var FRP = ["Organizando as palavras bonitas…","Colocando na ordem certa…","Deixando o texto profissional…","Montando o seu PDF…"];
+      $("#frasePrep").textContent = FRP[0];
+      timerFrases = setInterval(function(){ m = (m + 1) % FRP.length; $("#frasePrep").textContent = FRP[m]; }, 1700);
+      falar("Preparando o seu currículo. Só um momento.");
+      break;
+    case "t-enviar":
+      falar("Como você quer receber o seu currículo?");
+      break;
+    case "t-offline":
+      falar("O sinal sumiu, mas as suas respostas já estão bem guardadas. Assim que a internet voltar, a gente continua.");
+      break;
+  }
+  atualizarRodape(id);
+}
+function atualizarRodape(id){
+  var t = document.getElementById(id);
+  var n = ORDEM.indexOf(id) + 1;
+  $("#rodapeNota").textContent = "Protótipo · Tela " + n + " de " + ORDEM.length + " — " + (t ? t.getAttribute("data-titulo") : "");
+}
+
+/* ============================================================
+   16. PAINEL DE TELAS
+   ============================================================ */
+$("#gradeTelas").innerHTML = ORDEM.map(function(id, k){
+  var t = document.getElementById(id);
+  return '<button data-tela="' + id + '"><b>Tela ' + (k + 1) + '</b>' + t.getAttribute("data-titulo") + '</button>';
+}).join("");
+$("#btnPainel").addEventListener("click", function(){ $("#painel").classList.add("aberto"); });
+$("#btnFecharPainel").addEventListener("click", function(){ $("#painel").classList.remove("aberto"); });
+$("#painel").addEventListener("click", function(e){ if(e.target === $("#painel")) $("#painel").classList.remove("aberto"); });
+
+function carregarExemplo(){
+  S.dados.pessoais = [{nome:"José da Silva", cidade:"São Paulo", estado:"São Paulo (SP)",
+    objetivo:"Ajudante de pedreiro", cnh:"Sim, de moto", modalidade:"Sim, no local de trabalho", idade:"42"}];
+  S.portas.trabalho = "Sim, já trabalhei";
+  S.dados.trabalho = [
+    {cargo:"Ajudante de pedreiro", empresa:"Construtora Silva", periodo:"2 anos",
+     atividades:"Eu carregava material, fazia massa e ajudava no reboco e no assentamento.",
+     maisSobre:"Aprendi na obra com meu tio e depois passei a ensinar os mais novos"},
+    {cargo:"Auxiliar de limpeza", empresa:"Mercado Bom Preço", periodo:"8 meses",
+     atividades:"Eu limpava o salão, repunha as prateleiras e ajudava a descarregar o caminhão.", maisSobre:""}
+  ];
+  S.dados.estudo = [{escolaridade:"Ensino fundamental", instituicao:"Escola Estadual Jardim União", situacao:"Terminei"}];
+  S.portas.cursos = "Sim, fiz curso";
+  S.dados.cursos = [{curso:"Curso de Segurança em Obras"}];
+  S.dados.idiomas = [{idiomas:""}];
+  S.dados.contato = [{telefone:"(11) 99828-0299", email:"jose.silva@gmail.com", temLinkedin:"Não tenho", linkedin:""}];
+  ROTEIRO.forEach(function(g){ S.visitados[g.id] = true; });
+}
+
+document.addEventListener("click", function(e){
+  var b = e.target.closest("[data-tela]");
+  if(!b) return;
+  var id = b.getAttribute("data-tela");
+  pararTudo();
+  $("#painel").classList.remove("aberto");
+
+  var comDados = ["t-pronto","t-enviar","t-lendo","t-conferir","t-tudocerto","t-corrigir","t-progresso","t-faltando","t-mais"];
+  if(comDados.indexOf(id) >= 0 && !S.dados.pessoais[0].nome) carregarExemplo();
+
+  if(id === "t-pronto" || id === "t-enviar"){
+    if(!S.cv){
+      S.cv = cvBase();
+      S.cv.resumo = "Ajudante de pedreiro com 2 anos de experiência em obras e 8 meses em serviços de limpeza e reposição.";
+    }
+    $("#previaCV").innerHTML = renderCV(S.cv);
+  }
+  if(["t-pergunta","t-ouvindo","t-escrever","t-confirmar","t-erro","t-faltou"].indexOf(id) >= 0){
+    if(!S.rascunho) S.rascunho = "Trabalhei dois anos na obra, como ajudante de pedreiro.";
+    if(id === "t-pergunta"){ mostrarPergunta(); return; }
+  }
+  if(id === "t-faltou"){
+    $("#txtFaltou").textContent = "Preciso do tempo certinho";
+    $("#subFaltou").textContent = "Fale quanto tempo com número e a palavra mês ou ano. Por exemplo: dois anos, ou oito meses.";
+    $("#citacaoFaltou").hidden = false;
+    $("#citacaoFaltou").textContent = "Eu entendi: “trabalhei num mercado”";
+    S.faltouEscrever = false;
+  }
+  if(id === "t-mais"){ S.pos = {g:1, inst:1, q:4}; mostrarMais(); return; }
+  if(id === "t-lendo"){ montarLeitura(); }
+  if(id === "t-corrigir"){ montarCorrigir(); }
+  if(id === "t-progresso"){ montarProgresso(); }
+  if(id === "t-faltando"){ montarFaltando(); }
+  ir(id);
+});
+
+/* ============================================================
+   17. INÍCIO
+   ============================================================ */
+if(!SR) S.micOk = false;
+aplicarModo();
+ir("t-inicio");
+
+var destravou = false;
+document.addEventListener("pointerdown", function(){
+  if(destravou) return;
+  destravou = true;
+  if(S.tela === "t-inicio" && S.som && "speechSynthesis" in window && !window.speechSynthesis.speaking){
+    falar("Aperte o botão azul para começar.");
+  }
+});
+
+})();
+</script>
+</body>
+</html>
