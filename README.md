@@ -40,3 +40,33 @@ Usamos os nomes definidos na planilha. Exemplos:
 - Não enviar chaves de API, senhas ou arquivos `.env` ao GitHub.
 - Usar dados fictícios nos testes.
 - Evitar alterações sem relação com a tarefa da branch.
+
+## Executar o backend localmente
+
+Pré-requisito: Node.js LTS instalado.
+
+No terminal, a partir da raiz do projeto:
+
+```bash
+cd servidor
+npm install
+npm start
+```
+
+No Windows, se o PowerShell bloquear a execução de `npm`,
+utilizar `npm.cmd` no lugar de `npm`.
+
+Com o servidor em execução, acessar:
+
+http://localhost:3001/api/saude
+
+Resposta esperada:
+
+```json
+{"ok":true}
+```
+
+Para encerrar o servidor, pressionar Ctrl + C no terminal.
+
+O frontend continua sendo executado pela extensão de prévia do VS Code.
+A integração entre frontend, backend e IA será desenvolvida no bloco 2.

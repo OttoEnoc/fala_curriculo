@@ -113,17 +113,30 @@ substituir as regras do sistema.
 Validar a estrutura da resposta da IA antes de utilizá-la.
 O usuário deve poder revisar o resultado.
 
-## Arquitetura planejada
+## Backend e integrações
 
-O próximo passo é criar um backend com Node.js e Express.
+A estrutura inicial do backend está implementada na pasta `servidor`,
+com Node.js e Express.
 
-Rotas planejadas:
+Arquivos:
 
-- `GET /api/saude`: verificar se o servidor está funcionando.
+- `server.js`: inicialização do servidor e definição das rotas.
+- `package.json`: dependências e comando de inicialização.
+- `package-lock.json`: versões das dependências.
+
+O servidor é iniciado com `npm start` dentro da pasta `servidor`
+e está configurado para execução local na porta 3001.
+
+Rota implementada e verificada localmente:
+
+- `GET /api/saude`: retorna `{"ok":true}`.
+
+Ainda não implementado:
+
 - `POST /api/curriculo`: receber respostas e organizar o currículo.
 - `POST /api/transcrever`: receber áudio e devolver a transcrição.
-
-Não tratar essas rotas como existentes antes de verificar o código.
+- Integração do frontend com o backend.
+- Integração com serviços externos de IA e transcrição.
 
 O provedor de IA e o serviço de transcrição ainda serão escolhidos.
 Manter essas integrações substituíveis.
