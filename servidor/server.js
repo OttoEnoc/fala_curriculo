@@ -1,9 +1,11 @@
 "use strict";
 
+require("dotenv").config();
+
 const express = require("express");
 
 const app = express();
-const PORTA = 3001;
+const PORTA = 3002;
 
 app.disable("x-powered-by");
 
