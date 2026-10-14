@@ -7,6 +7,9 @@ const express = require("express");
 const { gerarCurriculo } = require("./ia/gerar");
 const { criarProvedorIA } = require("./ia/provedores");
 const { criarLimitador } = require("./limite");
+const { criarProvedorTranscricao } = require("./transcricao");
+
+const TIPOS_DE_AUDIO = ["audio/*", "video/webm", "video/mp4"];
 
 const PORTA = process.env.PORT || process.env.PORTA || 3001;
 
@@ -32,6 +35,9 @@ function criarApp(opcoes) {
   const env = opcoes.env || process.env;
   const provedorIA = opcoes.provedorIA !== undefined ? opcoes.provedorIA : criarProvedorIA(env);
   const tempoLimiteIA = Number(env.IA_TEMPO_LIMITE_MS) || 20000;
+  const provedorTranscricao = opcoes.provedorTranscricao !== undefined
+    ? opcoes.provedorTranscricao : criarProvedorTranscricao(env);
+  const tempoLimiteTranscricao = Number(env.TRANSCRICAO_TEMPO_LIMITE_MS) || 30000;
 
   const app = express();
   app.disable("x-powered-by");
@@ -43,6 +49,11 @@ function criarApp(opcoes) {
     maximo: Number(env.LIMITE_CURRICULOS_HORA) || 10,
     janelaMs: 60 * 60 * 1000,
     mensagem: "Você já gerou muitos currículos nesta última hora. Espere um pouco e tente de novo."
+  });
+  const limiteTranscricao = criarLimitador({
+    maximo: Number(env.LIMITE_TRANSCRICOES_HORA) || 120,
+    janelaMs: 60 * 60 * 1000,
+    mensagem: "Você já mandou muitos áudios nesta última hora. Por enquanto, escreva a resposta."
   });
 
   // Durante o desenvolvimento, o app pode abrir em outra porta
@@ -70,6 +81,41 @@ function criarApp(opcoes) {
   app.get("/api/saude", (req, res) => {
     res.json({ ok: true });
   });
+
+  // Diz ao app quais recursos do servidor estão ligados.
+  app.get("/api/recursos", (req, res) => {
+    res.json({ ok: true, ia: !!provedorIA, transcricao: !!provedorTranscricao });
+  });
+
+  // Recebe o áudio de uma resposta e devolve o texto.
+  // O áudio fica só na memória durante o pedido e nunca vai para o log.
+  app.post("/api/transcrever",
+    limiteTranscricao,
+    express.raw({ type: TIPOS_DE_AUDIO, limit: "8mb" }),
+    async (req, res) => {
+      if (!provedorTranscricao) {
+        return res.status(503).json({ ok: false, codigo: "indisponivel",
+          erro: "A transcrição pelo servidor não está ligada. Escreva a resposta." });
+      }
+      if (!Buffer.isBuffer(req.body) || req.body.length === 0) {
+        return res.status(400).json({ ok: false,
+          erro: "Envie o áudio no corpo do pedido, com o tipo audio/..." });
+      }
+
+      const controle = new AbortController();
+      const timer = setTimeout(() => controle.abort(), tempoLimiteTranscricao);
+      try {
+        const texto = await provedorTranscricao.transcrever(req.body, req.get("Content-Type"), controle.signal);
+        return res.json({ ok: true, texto: String(texto).replace(/\s+/g, " ").trim() });
+      } catch (erro) {
+        console.warn("[transcricao] falha:", controle.signal.aborted ? "tempo-limite"
+          : (erro.statusProvedor || erro.name || "erro"));
+        return res.status(502).json({ ok: false, codigo: "falhou",
+          erro: "Não consegui entender o áudio agora. Tente de novo ou escreva a resposta." });
+      } finally {
+        clearTimeout(timer);
+      }
+    });
 
   app.post("/api/curriculo", limiteCurriculo, async (req, res) => {
     const corpo = req.body;
