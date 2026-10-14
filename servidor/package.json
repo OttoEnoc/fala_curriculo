@@ -4,7 +4,7 @@
   "description": "Servidor do Fala Currículo",
   "main": "server.js",
   "scripts": {
-    "test": "node --test",
+    "test": "node --test \"test/*.test.js\"",
     "start": "node server.js"
   },
   "keywords": [],
