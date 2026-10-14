@@ -149,6 +149,18 @@ function criarApp(opcoes) {
     return next(erro);
   });
 
+  // Qualquer outro erro: resposta genérica.
+  // O log registra só o tipo do erro, nunca o conteúdo do pedido.
+  // eslint-disable-next-line no-unused-vars
+  app.use((erro, req, res, next) => {
+    const status = erro.status || erro.statusCode || 500;
+    console.warn("[erro]", status, erro.type || erro.name || "erro");
+    const mensagem = status === 413
+      ? "O envio ficou grande demais."
+      : "Não foi possível atender o pedido agora.";
+    res.status(status >= 400 && status < 600 ? status : 500).json({ ok: false, erro: mensagem });
+  });
+
   return app;
 }
 
