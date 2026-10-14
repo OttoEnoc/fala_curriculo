@@ -915,37 +915,69 @@ function respostasParaEnvio(){
   return {respostas:respostas, portas:portas};
 }
 
+var TEMPO_LIMITE_SERVIDOR = 25000;
+var AVISO_SEM_SERVIDOR = "Não consegui falar com o servidor agora. Montei o currículo só com as suas respostas, sem melhorar o texto.";
+
 function solicitarCurriculoAoServidor(){
-  return fetch(API_BASE + "/api/curriculo", {
+  var controle = ("AbortController" in window) ? new AbortController() : null;
+  var timer = setTimeout(function(){ if(controle) controle.abort(); }, TEMPO_LIMITE_SERVIDOR);
+  var limite = new Promise(function(_, rejeitar){
+    setTimeout(function(){ rejeitar(new Error("tempo")); }, TEMPO_LIMITE_SERVIDOR + 500);
+  });
+  var pedido = fetch(API_BASE + "/api/curriculo", {
     method:"POST",
     headers:{"Content-Type":"application/json"},
-    body:JSON.stringify(respostasParaEnvio())
+    body:JSON.stringify(respostasParaEnvio()),
+    signal: controle ? controle.signal : undefined
   }).then(function(r){
     return r.json().then(function(corpo){
+      if(r.status === 429 && corpo && corpo.erro){
+        var e = new Error("limite"); e.aviso = corpo.erro + " Por enquanto, montei o currículo só com as suas respostas."; throw e;
+      }
       if(!r.ok || !corpo || !corpo.ok) throw new Error("servidor");
       return corpo;
     });
   });
+  return Promise.race([pedido, limite]).then(function(c){ clearTimeout(timer); return c; },
+    function(e){ clearTimeout(timer); throw e; });
+}
+
+/* Confere o currículo vindo do servidor antes de mostrar. */
+function curriculoValido(cv){
+  if(!cv || typeof cv !== "object") return false;
+  var textos = ["nome","titulo","local","idade","cnh","modalidade","resumo","idiomas","telefone","email","linkedin"];
+  for(var k = 0; k < textos.length; k++){ if(typeof cv[textos[k]] !== "string") return false; }
+  if(!Array.isArray(cv.experiencia) || !Array.isArray(cv.formacao) || !Array.isArray(cv.cursos)) return false;
+  return cv.experiencia.every(function(e){
+    return e && ["cargo","empresa","periodo","atividades","maisSobre"].every(function(c){ return typeof e[c] === "string"; });
+  }) && cv.formacao.concat(cv.cursos).every(function(t){ return typeof t === "string"; });
 }
 
 function prepararCV(){
   var pronto = false;
   var espera = new Promise(function(res){ setTimeout(res, 2600); });
-  function finalizar(cv){
+  function finalizar(cv, aviso){
     if(pronto) return;
     pronto = true;
     S.cv = cv;
     espera.then(function(){
       $("#previaCV").innerHTML = renderCV(cv);
+      $("#txtAvisoPronto").textContent = aviso || "";
+      $("#avisoPronto").hidden = !aviso;
       ir("t-pronto");
       soltarConfete();
-      setTimeout(function(){ falar("Seu currículo ficou pronto!"); }, 500);
+      setTimeout(function(){ falar("Seu currículo ficou pronto!" + (aviso ? " " + aviso : "")); }, 500);
     });
   }
   var base = cvBase();
   solicitarCurriculoAoServidor().then(function(corpo){
-    finalizar(corpo.curriculo || base);
-  }).catch(function(){ finalizar(base); });
+    var cv = corpo.curriculo;
+    if(!curriculoValido(cv)){ finalizar(base, AVISO_SEM_SERVIDOR); return; }
+    // nome e contatos sempre como a pessoa confirmou
+    cv.nome = base.nome; cv.telefone = base.telefone; cv.email = base.email; cv.linkedin = base.linkedin;
+    cv.primeiroEmprego = cv.experiencia.length === 0;
+    finalizar(cv, corpo.origem === "basico" ? corpo.aviso : "");
+  }).catch(function(e){ finalizar(base, (e && e.aviso) || AVISO_SEM_SERVIDOR); });
 }
 
 $("#btnSimCerto").addEventListener("click", function(){
