@@ -50,7 +50,7 @@
       </svg>
       <div class="aviso" id="avisoInicio" role="status" hidden><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"><path d="m4.5 12.5 5 5 10-11"/></svg><span id="txtAvisoInicio"></span></div>
       <div class="cresce"></div>
-      <div class="acoes"><button class="btn btn--azul largura-total" data-ir="t-microfone"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.3" stroke-linecap="round"><rect x="9" y="2" width="6" height="12" rx="3"/><path d="M5 11a7 7 0 0 0 14 0M12 18v4"/></svg>Começar</button></div>
+      <div class="acoes"><button class="btn btn--azul largura-total" data-ir="t-consentimento"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.3" stroke-linecap="round"><rect x="9" y="2" width="6" height="12" rx="3"/><path d="M5 11a7 7 0 0 0 14 0M12 18v4"/></svg>Começar</button></div>
     </section>
 
     <section class="tela" id="t-retomar" data-titulo="Continuar de onde parou">
@@ -65,10 +65,30 @@
       </div>
     </section>
 
+    <section class="tela" id="t-consentimento" data-titulo="Antes de começar">
+      <span class="selo"><span class="onda"><i></i><i></i><i></i><i></i><i></i></span> Ouça com calma</span>
+      <h1>Antes de começar</h1>
+      <p class="sub">Para fazer o seu currículo, eu preciso de algumas informações sobre você. Veja o que acontece com elas.</p>
+      <div class="lista" id="listaConsentimento">
+        <div class="cartao cartao--estatico"><span class="num">1</span><span><b>O que eu vou perguntar</b><small>Seu nome, sua cidade, o trabalho que procura, seus trabalhos, seus estudos e como falar com você.</small></span></div>
+        <div class="cartao cartao--estatico"><span class="num">2</span><span><b>Para que serve</b><small>Só para montar o seu currículo. Mais nada.</small></span></div>
+        <div class="cartao cartao--estatico"><span class="num">3</span><span><b>Para onde vai</b><small>As respostas vão para o nosso sistema, que usa inteligência artificial para arrumar o texto. Seu nome e seus contatos não vão para a inteligência artificial. O sistema não guarda nada.</small></span></div>
+        <div class="cartao cartao--estatico"><span class="num">4</span><span><b>Sua voz</b><small>Se você falar, a sua voz vira texto. O navegador pode usar um serviço da internet para isso. Se preferir, pode escrever.</small></span></div>
+        <div class="cartao cartao--estatico"><span class="num">5</span><span><b>No seu aparelho</b><small>As respostas ficam guardadas neste aparelho até o currículo ficar pronto, ou no máximo por 7 dias. Você pode apagar quando quiser.</small></span></div>
+      </div>
+      <div class="aviso" id="avisoConsentimento" role="status" hidden><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.3" stroke-linecap="round"><circle cx="12" cy="12" r="9"/><path d="M12 8v5M12 16.5v.01"/></svg><span>Tudo bem. Sem aceitar, não dá para montar o currículo. Nada foi guardado.</span></div>
+      <div class="cresce"></div>
+      <div class="acoes">
+        <button class="btn btn--verde largura-total" id="btnAceito"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"><path d="m4.5 12.5 5 5 10-11"/></svg>Aceito e quero começar</button>
+        <button class="btn btn--claro" id="btnOuvirConsentimento"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.3" stroke-linecap="round"><path d="M11 5 6 9H3v6h3l5 4V5z"/><path d="M15.5 8.5a5 5 0 0 1 0 7"/></svg>Ouvir de novo</button>
+        <button class="btn btn--claro" id="btnNaoAceito">Não aceito</button>
+      </div>
+    </section>
+
     <section class="tela" id="t-microfone" data-titulo="Permissão do microfone">
       <span class="selo"><span class="onda"><i></i><i></i><i></i><i></i><i></i></span> Ouça a explicação</span>
       <h1>Preciso ouvir a sua voz para te ajudar</h1>
-      <p class="sub">Para escrever o que você fala, o app precisa da sua permissão para usar o microfone do aparelho. Ninguém mais escuta.</p>
+      <p class="sub">Para escrever o que você fala, o app precisa da sua permissão para usar o microfone do aparelho. O app não guarda a sua voz.</p>
       <svg class="ilustra" viewBox="0 0 280 170" role="img" aria-label="Celular com microfone ligado">
         <rect x="98" y="16" width="84" height="138" rx="16" fill="var(--papel)" stroke="var(--borda)" stroke-width="3"/>
         <circle cx="140" cy="82" r="34" fill="var(--vermelho-suave)"/>

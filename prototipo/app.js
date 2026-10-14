@@ -13,7 +13,7 @@ var S = {
   rascunho:"", ultimaChave:null, repeticoes:0, som:true, modo:"sozinho", micOk:null,
   editandoSecao:null, conferindoFaltas:false,
   faltouEscrever:false, cv:null,
-  iniciado:false, salvoNoAparelho:false
+  iniciado:false, salvoNoAparelho:false, consentiu:false
 };
 
 var $ = function(s){ return document.querySelector(s); };
@@ -67,6 +67,7 @@ function retomar(e){
   S.pos = e.pos || {g:0, inst:0, q:-1}; S.modo = e.modo || "sozinho"; S.cv = e.cv || null;
   S.editandoSecao = e.editandoSecao || null; S.conferindoFaltas = !!e.conferindoFaltas;
   S.iniciado = true;
+  S.consentiu = true; // só existe progresso guardado depois de aceitar
   aplicarModo();
   var t = e.tela;
   if(["t-pergunta","t-ouvindo","t-escrever","t-confirmar","t-faltou","t-erro","t-processando"].indexOf(t) >= 0){ mostrarPergunta(); return; }
@@ -762,10 +763,27 @@ $("#btnComecarDeNovo").addEventListener("click", function(){
   if(typeof Armazenamento !== "undefined") Armazenamento.apagar().catch(function(){});
   ir("t-inicio", true);
 });
+/* --- consentimento: ninguém começa sem aceitar --- */
+function textoConsentimento(){
+  return $$("#listaConsentimento .cartao").map(function(c){
+    return c.querySelector("b").textContent + ". " + c.querySelector("small").textContent;
+  }).join(" ");
+}
+$("#btnAceito").addEventListener("click", function(){
+  calar(); S.consentiu = true; $("#avisoConsentimento").hidden = true; ir("t-microfone");
+});
+$("#btnNaoAceito").addEventListener("click", function(){
+  calar(); S.consentiu = false; $("#avisoConsentimento").hidden = false;
+  falar("Tudo bem. Sem aceitar, não dá para montar o currículo. Nada foi guardado.");
+});
+$("#btnOuvirConsentimento").addEventListener("click", function(){
+  falar("Antes de começar. " + textoConsentimento());
+});
 $("#btnAgoraNao").addEventListener("click", function(){ S.micOk = false; ir("t-como"); });
 
 $$("[data-modo]").forEach(function(b){
   b.addEventListener("click", function(){
+    if(!S.consentiu){ ir("t-consentimento"); return; }
     S.modo = b.getAttribute("data-modo");
     aplicarModo();
     zerar();
@@ -1278,7 +1296,11 @@ function aoEntrar(id){
     case "t-retomar":
       falar("Você já começou um currículo neste aparelho. Quer continuar de onde parou?");
       break;
+    case "t-consentimento":
+      falar("Antes de começar, veja o que acontece com as suas informações. " + textoConsentimento() + " Se concordar, aperte o botão verde.");
+      break;
     case "t-microfone":
+      if(!S.consentiu){ ir("t-consentimento"); return; }
       falar("Preciso ouvir a sua voz para te ajudar. Como eu escrevo o que você fala, preciso da sua permissão para usar o microfone do aparelho.");
       break;
     case "t-como":
