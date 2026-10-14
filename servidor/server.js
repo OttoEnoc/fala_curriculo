@@ -5,6 +5,7 @@ require("dotenv").config();
 const express = require("express");
 const { gerarCurriculo } = require("./ia/gerar");
 const { criarProvedorIA } = require("./ia/provedores");
+const { criarLimitador } = require("./limite");
 
 const PORTA = process.env.PORT || process.env.PORTA || 3001;
 
@@ -34,6 +35,15 @@ function criarApp(opcoes) {
   const app = express();
   app.disable("x-powered-by");
 
+  // Atrás de um serviço de hospedagem, o IP real chega pelo proxy.
+  if (env.CONFIAR_PROXY === "1") app.set("trust proxy", 1);
+
+  const limiteCurriculo = criarLimitador({
+    maximo: Number(env.LIMITE_CURRICULOS_HORA) || 10,
+    janelaMs: 60 * 60 * 1000,
+    mensagem: "Você já gerou muitos currículos nesta última hora. Espere um pouco e tente de novo."
+  });
+
   // Permite que o servidor receba JSON.
   // O limite evita o envio de arquivos ou textos excessivamente grandes.
   app.use(express.json({ limit: "50kb" }));
@@ -42,7 +52,7 @@ function criarApp(opcoes) {
     res.json({ ok: true });
   });
 
-  app.post("/api/curriculo", async (req, res) => {
+  app.post("/api/curriculo", limiteCurriculo, async (req, res) => {
     const corpo = req.body;
 
     if (!objetoSimples(corpo)) {
