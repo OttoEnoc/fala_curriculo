@@ -49,6 +49,19 @@ function salvarProgresso(){
 
 var estadoGuardado = null;
 
+/* Apaga o que está guardado no aparelho e para de guardar. */
+function apagarDoAparelho(){
+  S.iniciado = false;
+  S.salvoNoAparelho = false;
+  if(typeof Armazenamento === "undefined") return Promise.resolve();
+  return Armazenamento.apagar().catch(function(){});
+}
+
+/* Depois de gerar o PDF, as respostas não ficam mais guardadas no aparelho.
+   O currículo continua nesta tela até o app ser fechado. */
+var AVISO_APAGADO = " As suas respostas foram apagadas deste aparelho.";
+function limparAposPDF(){ return apagarDoAparelho(); }
+
 function retomar(e){
   S.dados = e.dados || S.dados; S.portas = e.portas || {}; S.visitados = e.visitados || {};
   S.pos = e.pos || {g:0, inst:0, q:-1}; S.modo = e.modo || "sozinho"; S.cv = e.cv || null;
@@ -1142,16 +1155,18 @@ $("#btnBaixar").addEventListener("click", function(){
     a.href = url; a.download = nomeArquivo();
     document.body.appendChild(a); a.click(); a.remove();
     setTimeout(function(){ URL.revokeObjectURL(url); }, 4000);
-    avisar("Currículo guardado no aparelho.");
-    falar("Pronto. Seu currículo foi guardado no aparelho.");
+    limparAposPDF();
+    avisar("O PDF do currículo foi baixado." + AVISO_APAGADO);
+    falar("Pronto. O PDF do currículo foi baixado." + AVISO_APAGADO);
   }catch(e){ avisar("Este navegador bloqueou o download. Use o botão de imprimir."); }
 });
 
 $("#btnImprimir").addEventListener("click", function(){
   $("#avisoEnvio").hidden = true;
   var doc = gerarPDF();
+  limparAposPDF();
   if(doc){
-    try{ var w = window.open(doc.output("bloburl"), "_blank"); if(w) return; }catch(e){}
+    try{ var w = window.open(doc.output("bloburl"), "_blank"); if(w){ avisar("O PDF abriu em outra aba para imprimir." + AVISO_APAGADO); return; } }catch(e){}
   }
   window.print();
 });
@@ -1165,7 +1180,7 @@ $("#btnWhats").addEventListener("click", function(){
   try{ if(blob) arq = new File([blob], nomeArquivo(), {type:"application/pdf"}); }catch(e){}
   if(arq && navigator.canShare && navigator.canShare({files:[arq]})){
     navigator.share({files:[arq], title:"Meu currículo", text:"Segue o meu currículo."})
-      .then(function(){ falar("Currículo enviado."); })
+      .then(function(){ limparAposPDF(); avisar("Currículo enviado." + AVISO_APAGADO); falar("Currículo enviado."); })
       .catch(function(){ abrirWhatsTexto(cv); });
   }else{ abrirWhatsTexto(cv); }
 });
@@ -1173,13 +1188,27 @@ function abrirWhatsTexto(cv){
   var texto = "*" + cv.nome + "*\n" + [cv.titulo, cv.local].filter(Boolean).join(" · ") + "\n\n" + textoDoCV(cv);
   var w = window.open("https://wa.me/?text=" + encodeURIComponent(texto), "_blank", "noopener");
   if(!w) avisar("O navegador bloqueou a abertura do WhatsApp. Guarde o PDF no aparelho e envie pelo aplicativo.");
-  else avisar("No protótipo, o WhatsApp recebe o currículo em texto. O envio do PDF em anexo entra na versão final.");
+  else{
+    limparAposPDF();
+    avisar("No protótipo, o WhatsApp recebe o currículo em texto. O envio do PDF em anexo entra na versão final." + AVISO_APAGADO);
+  }
 }
 
 $("#btnRecomecar").addEventListener("click", function(){
-  pararTudo(); zerar();
-  $("#avisoEnvio").hidden = true;
+  pararTudo(); apagarDoAparelho(); zerar();
+  $("#avisoEnvio").hidden = true; $("#avisoPronto").hidden = true; $("#avisoInicio").hidden = true;
   ir("t-inicio", true);
+});
+$("#btnApagarDados").addEventListener("click", function(){
+  pararTudo();
+  apagarDoAparelho().then(function(){
+    zerar();
+    $("#avisoEnvio").hidden = true; $("#avisoPronto").hidden = true;
+    $("#txtAvisoInicio").textContent = "Pronto. As suas respostas foram apagadas deste aparelho.";
+    $("#avisoInicio").hidden = false;
+    ir("t-inicio", true);
+    falar("Pronto. As suas respostas foram apagadas deste aparelho.");
+  });
 });
 
 /* ============================================================
