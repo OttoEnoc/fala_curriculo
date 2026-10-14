@@ -2,6 +2,7 @@
 
 require("dotenv").config();
 
+const path = require("path");
 const express = require("express");
 const { gerarCurriculo } = require("./ia/gerar");
 const { criarProvedorIA } = require("./ia/provedores");
@@ -42,6 +43,24 @@ function criarApp(opcoes) {
     maximo: Number(env.LIMITE_CURRICULOS_HORA) || 10,
     janelaMs: 60 * 60 * 1000,
     mensagem: "Você já gerou muitos currículos nesta última hora. Espere um pouco e tente de novo."
+  });
+
+  // Durante o desenvolvimento, o app pode abrir em outra porta
+  // (por exemplo, na prévia do VS Code). Só estas origens podem chamar a API.
+  const origensPermitidas = (env.CORS_ORIGENS || "").split(",").map((o) => o.trim()).filter(Boolean);
+  const origemLocal = /^http:\/\/(localhost|127\.0\.0\.1)(:\d+)?$/;
+  app.use("/api", (req, res, next) => {
+    const origem = req.get("Origin");
+    const permitida = origem && (origensPermitidas.includes(origem) ||
+      (env.NODE_ENV !== "production" && origemLocal.test(origem)));
+    if (permitida) {
+      res.set("Access-Control-Allow-Origin", origem);
+      res.set("Vary", "Origin");
+      res.set("Access-Control-Allow-Methods", "GET, POST");
+      res.set("Access-Control-Allow-Headers", "Content-Type");
+    }
+    if (req.method === "OPTIONS") return res.sendStatus(permitida ? 204 : 403);
+    return next();
   });
 
   // Permite que o servidor receba JSON.
@@ -110,6 +129,9 @@ function criarApp(opcoes) {
 
     return res.status(200).json(Object.assign({ ok: true }, resultado));
   });
+
+  // O próprio servidor entrega o app, assim app e API ficam no mesmo endereço.
+  app.use(express.static(path.join(__dirname, "..", "prototipo")));
 
   // Retorna um erro compreensível quando o JSON estiver quebrado.
   app.use((erro, req, res, next) => {

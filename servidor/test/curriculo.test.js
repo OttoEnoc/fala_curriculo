@@ -86,3 +86,16 @@ test("prompt fica no servidor e não leva nome nem contatos", () => {
   assert.match(p.usuario, /^<dados>/);
   assert.doesNotMatch(p.usuario, /José|90000|exemplo\.com/);
 });
+
+test("entrega o app e aceita origem local para a API", async () => {
+  const s = await iniciar({ provedorIA: null });
+  const pagina = await fetch(s.url + "/");
+  assert.match(await pagina.text(), /Fala Currículo/);
+  const pre = await fetch(s.url + "/api/curriculo", { method: "OPTIONS",
+    headers: { Origin: "http://127.0.0.1:5500", "Access-Control-Request-Method": "POST" } });
+  assert.strictEqual(pre.status, 204);
+  const outro = await fetch(s.url + "/api/curriculo", { method: "OPTIONS",
+    headers: { Origin: "https://outro.example", "Access-Control-Request-Method": "POST" } });
+  assert.strictEqual(outro.status, 403);
+  await s.fechar();
+});

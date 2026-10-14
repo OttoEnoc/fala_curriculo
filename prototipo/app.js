@@ -895,55 +895,37 @@ $("#btnMudarAlgo").addEventListener("click", function(){ calar(); montarCorrigir
 /* ============================================================
    12. ORGANIZAÇÃO DO CURRÍCULO
    ============================================================ */
-var REGRAS = [
-  "Você organiza currículos para pessoas com pouca escolaridade no Brasil.",
-  "Use SOMENTE as informações fornecidas. É proibido inventar empresas, cargos, datas, cursos, resultados ou qualquer habilidade que a pessoa não tenha dito.",
-  "Corrija a ortografia, organize as frases e use um português profissional, porém simples e direto.",
-  "Se um campo estiver vazio, devolva string vazia ou lista vazia. Nunca preencha com exemplo.",
-  "Se a pessoa nunca trabalhou, deixe experiencia como lista vazia e escreva um resumo focado no objetivo e nos estudos.",
-  "Não invente carteira de motorista nem idiomas.",
-  "Escreva tudo em português do Brasil."
-].join(" ");
+/*
+  O app envia somente as respostas para o servidor.
+  As instruções para a IA ficam no servidor (servidor/ia/prompt.js).
+*/
+var API_BASE = (function(){
+  var m = document.querySelector('meta[name="fala-api"]');
+  if(m && m.content) return m.content.replace(/\/$/,"");
+  var local = location.protocol === "file:" || /^(localhost|127\.0\.0\.1)$/.test(location.hostname);
+  if(local && location.port !== "3001") return "http://127.0.0.1:3001";
+  return "";
+})();
 
-function promptCV(){
-  var b = cvBase();
-  var linhas = [];
-  linhas.push("Nome: " + b.nome);
-  linhas.push("Cidade e estado: " + b.local);
-  linhas.push("Idade: " + (b.idade || "(não informou)"));
-  linhas.push("Vaga que procura: " + b.titulo);
-  linhas.push("Carteira de motorista: " + (b.cnh || "(não tem ou não informou)"));
-  linhas.push("Disponibilidade: " + (b.modalidade || "(não informou)"));
-  if(b.experiencia.length){
-    b.experiencia.forEach(function(e, k){
-      linhas.push("Trabalho " + (k+1) + ": função " + e.cargo + "; local " + e.empresa +
-        "; tempo " + e.periodo + "; o que fazia: " + e.atividades +
-        (e.maisSobre ? "; mais sobre esse trabalho: " + e.maisSobre : ""));
-    });
-  }else{ linhas.push("Experiência: nunca trabalhou, procura o primeiro emprego."); }
-  b.formacao.forEach(function(f, k){ linhas.push("Estudo " + (k+1) + ": " + f); });
-  b.cursos.forEach(function(c, k){ linhas.push("Curso " + (k+1) + ": " + c); });
-  if(b.idiomas) linhas.push("Idiomas: " + b.idiomas);
-  linhas.push("Telefone: " + b.telefone);
-  linhas.push("E-mail: " + b.email);
-  if(b.linkedin) linhas.push("LinkedIn: " + b.linkedin);
-
-  return REGRAS + "\n\nInformações da pessoa:\n" + linhas.join("\n") +
-    "\n\nResponda SOMENTE com um objeto JSON neste formato, sem nenhum texto antes ou depois:\n" +
-    '{"titulo":"","resumo":"","experiencia":[{"cargo":"","empresa":"","periodo":"","atividades":"","maisSobre":""}],"formacao":[""],"cursos":[""]}\n' +
-    '"titulo" é a vaga que a pessoa procura, em poucas palavras. "resumo" tem no máximo duas frases e só usa o que foi dito. "atividades" vira uma frase profissional descrevendo o que a pessoa fazia.';
+function respostasParaEnvio(){
+  var respostas = {};
+  ROTEIRO.forEach(function(g){ respostas[g.id] = (S.dados[g.id] || [{}]).slice(); });
+  var portas = {};
+  Object.keys(S.portas).forEach(function(k){ if(typeof S.portas[k] === "string") portas[k] = S.portas[k]; });
+  return {respostas:respostas, portas:portas};
 }
 
-/*
-  Ponto de integração com a API do projeto.
-  A implementação final deve disponibilizar uma função assíncrona chamada
-  window.processarCurriculoComIA, que recebe o texto de instruções e retorna
-  o objeto JSON com o currículo organizado. Sem a API, o protótipo preserva
-  os dados informados e conclui normalmente o fluxo de demonstração.
-*/
-function solicitarOrganizacaoIA(instrucoes){
-  if(typeof window.processarCurriculoComIA !== "function") return Promise.resolve(null);
-  return Promise.resolve(window.processarCurriculoComIA(instrucoes));
+function solicitarCurriculoAoServidor(){
+  return fetch(API_BASE + "/api/curriculo", {
+    method:"POST",
+    headers:{"Content-Type":"application/json"},
+    body:JSON.stringify(respostasParaEnvio())
+  }).then(function(r){
+    return r.json().then(function(corpo){
+      if(!r.ok || !corpo || !corpo.ok) throw new Error("servidor");
+      return corpo;
+    });
+  });
 }
 
 function prepararCV(){
@@ -961,22 +943,8 @@ function prepararCV(){
     });
   }
   var base = cvBase();
-  solicitarOrganizacaoIA(promptCV()).then(function(d){
-    if(!d){ finalizar(base); return; }
-      finalizar({
-        nome: base.nome,
-        titulo: (d && d.titulo) || base.titulo,
-        local: base.local,
-        idade: base.idade,
-        cnh: base.cnh,
-        modalidade: base.modalidade,
-        primeiroEmprego: base.primeiroEmprego,
-        resumo: (d && d.resumo) || "",
-        experiencia: (d && Array.isArray(d.experiencia)) ? d.experiencia : base.experiencia,
-        formacao: (d && Array.isArray(d.formacao)) ? d.formacao.filter(Boolean) : base.formacao,
-        cursos: (d && Array.isArray(d.cursos)) ? d.cursos.filter(Boolean) : base.cursos,
-        idiomas: base.idiomas, telefone: base.telefone, email: base.email, linkedin: base.linkedin
-      });
+  solicitarCurriculoAoServidor().then(function(corpo){
+    finalizar(corpo.curriculo || base);
   }).catch(function(){ finalizar(base); });
 }
 
