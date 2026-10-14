@@ -12,7 +12,8 @@ var S = {
   dados:{}, portas:{}, visitados:{},
   rascunho:"", ultimaChave:null, repeticoes:0, som:true, modo:"sozinho", micOk:null,
   editandoSecao:null, conferindoFaltas:false,
-  faltouEscrever:false, cv:null
+  faltouEscrever:false, cv:null,
+  iniciado:false, salvoNoAparelho:false
 };
 
 var $ = function(s){ return document.querySelector(s); };
@@ -31,6 +32,22 @@ function zerar(){
 zerar();
 
 /* ============================================================
+   2b. PROGRESSO SALVO NO APARELHO (armazenamento.js)
+   ============================================================ */
+function estadoParaSalvar(){
+  return {dados:S.dados, portas:S.portas, visitados:S.visitados, pos:S.pos, modo:S.modo,
+    tela:S.tela, cv:S.cv, editandoSecao:S.editandoSecao, conferindoFaltas:S.conferindoFaltas};
+}
+function salvarProgresso(){
+  if(!S.iniciado || typeof Armazenamento === "undefined") return;
+  var copia;
+  try{ copia = JSON.parse(JSON.stringify(estadoParaSalvar())); }catch(e){ return; }
+  Armazenamento.salvar(copia).then(
+    function(){ S.salvoNoAparelho = true; },
+    function(){ S.salvoNoAparelho = false; });
+}
+
+/* ============================================================
    3. NAVEGAÇÃO
    ============================================================ */
 function ir(id, volta){
@@ -39,6 +56,7 @@ function ir(id, volta){
   var nova = document.getElementById(id);
   if(!nova) return;
   S.tela = id;
+  salvarProgresso();
   nova.classList.add("ativa");
   void nova.offsetWidth;
   nova.classList.add(volta ? "entra-volta" : "entra");
@@ -698,6 +716,7 @@ $$("[data-modo]").forEach(function(b){
     S.modo = b.getAttribute("data-modo");
     aplicarModo();
     zerar();
+    S.iniciado = true;
     entrarGrupo();
   });
 });
@@ -1279,7 +1298,11 @@ function aoEntrar(id){
       falar("Como você quer receber o seu currículo?");
       break;
     case "t-offline":
-      falar("O sinal sumiu, mas as suas respostas já estão bem guardadas. Assim que a internet voltar, a gente continua.");
+      var guardou = S.salvoNoAparelho
+        ? "O sinal sumiu, mas as suas respostas já estão salvas no aparelho."
+        : "O sinal sumiu, mas as suas respostas continuam nesta tela. Não feche o app.";
+      $("#subOffline").textContent = guardou + " Assim que a internet voltar, a gente continua de onde parou.";
+      falar(guardou + " Assim que a internet voltar, a gente continua.");
       break;
   }
   atualizarRodape(id);
