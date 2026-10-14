@@ -47,6 +47,37 @@ function salvarProgresso(){
     function(){ S.salvoNoAparelho = false; });
 }
 
+var estadoGuardado = null;
+
+function retomar(e){
+  S.dados = e.dados || S.dados; S.portas = e.portas || {}; S.visitados = e.visitados || {};
+  S.pos = e.pos || {g:0, inst:0, q:-1}; S.modo = e.modo || "sozinho"; S.cv = e.cv || null;
+  S.editandoSecao = e.editandoSecao || null; S.conferindoFaltas = !!e.conferindoFaltas;
+  S.iniciado = true;
+  aplicarModo();
+  var t = e.tela;
+  if(["t-pergunta","t-ouvindo","t-escrever","t-confirmar","t-faltou","t-erro","t-processando"].indexOf(t) >= 0){ mostrarPergunta(); return; }
+  if(t === "t-mais"){ mostrarMais(); return; }
+  if((t === "t-pronto" || t === "t-enviar") && S.cv){ $("#previaCV").innerHTML = renderCV(S.cv); ir(t); return; }
+  if(t === "t-corrigir"){ montarCorrigir(); ir(t); return; }
+  if(["t-progresso","t-conferir","t-tudocerto","t-faltando"].indexOf(t) >= 0){ ir(t); return; }
+  if(t === "t-lendo" || t === "t-preparando" || t === "t-pronto" || t === "t-enviar"){ ir("t-tudocerto"); return; }
+  mostrarPergunta();
+}
+
+function verificarProgressoGuardado(){
+  if(typeof Armazenamento === "undefined") return;
+  Armazenamento.carregar().then(function(e){
+    if(!e || S.iniciado || S.tela !== "t-inicio") return;
+    estadoGuardado = e;
+    var nome = e.dados && e.dados.pessoais && e.dados.pessoais[0] && e.dados.pessoais[0].nome;
+    $("#resumoRetomar").innerHTML = nome
+      ? '<div class="cartao cartao--estatico"><span><b>' + esc(nome) + '</b><small>Currículo começado neste aparelho</small></span></div>'
+      : "";
+    ir("t-retomar");
+  }, function(){});
+}
+
 /* ============================================================
    3. NAVEGAÇÃO
    ============================================================ */
@@ -709,6 +740,15 @@ $("#btnPermitir").addEventListener("click", function(){
     setTimeout(seguir, 3000);
   }
 });
+$("#btnRetomar").addEventListener("click", function(){
+  calar();
+  if(estadoGuardado) retomar(estadoGuardado); else ir("t-inicio");
+});
+$("#btnComecarDeNovo").addEventListener("click", function(){
+  calar(); estadoGuardado = null;
+  if(typeof Armazenamento !== "undefined") Armazenamento.apagar().catch(function(){});
+  ir("t-inicio", true);
+});
 $("#btnAgoraNao").addEventListener("click", function(){ S.micOk = false; ir("t-como"); });
 
 $$("[data-modo]").forEach(function(b){
@@ -1206,6 +1246,9 @@ function aoEntrar(id){
     case "t-inicio":
       falar("Fala Currículo. O jeito fácil de fazer o seu currículo usando só a sua voz. Aperte o botão azul para começar.");
       break;
+    case "t-retomar":
+      falar("Você já começou um currículo neste aparelho. Quer continuar de onde parou?");
+      break;
     case "t-microfone":
       falar("Preciso ouvir a sua voz para te ajudar. Como eu escrevo o que você fala, preciso da sua permissão para usar o microfone do aparelho.");
       break;
@@ -1385,6 +1428,7 @@ document.addEventListener("click", function(e){
 if(!SR) S.micOk = false;
 aplicarModo();
 ir("t-inicio");
+verificarProgressoGuardado();
 
 var destravou = false;
 document.addEventListener("pointerdown", function(){
