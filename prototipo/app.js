@@ -155,12 +155,105 @@ $("#btnSom").addEventListener("click", function(){
    ============================================================ */
 var SR = window.SpeechRecognition || window.webkitSpeechRecognition;
 var rec = null, gravando = false, textoOuvido = "", encerrando = false;
-function temMic(){ return !!SR && S.micOk !== false; }
+function temMic(){ return (!!SR || podeGravarAudio()) && S.micOk !== false; }
+
+/* ---- Gravação de áudio enviada ao servidor (quando o navegador não reconhece fala) ---- */
+var gravador = null, pedacos = [], enviarAoParar = false, timerGravacao = null;
+var TEMPO_MAXIMO_GRAVACAO = 60000;
+
+function podeGravarAudio(){
+  return !!(S.recursos && S.recursos.transcricao && window.MediaRecorder &&
+    navigator.mediaDevices && navigator.mediaDevices.getUserMedia);
+}
+function tipoDeAudio(){
+  var tipos = ["audio/webm;codecs=opus", "audio/webm", "audio/mp4", "audio/ogg;codecs=opus"];
+  for(var k = 0; k < tipos.length; k++){
+    try{ if(MediaRecorder.isTypeSupported(tipos[k])) return tipos[k]; }catch(e){}
+  }
+  return "";
+}
+function mostrarOuvindo(){
+  gravando = true;
+  document.body.classList.add("ouvindo");
+  $("#btnParar").hidden = false;
+  $("#btnMicDeNovo").hidden = true;
+  $("#tituloOuvindo").textContent = "Pode falar agora";
+  $("#subOuvindo").textContent = "Quando terminar, aperte o botão vermelho de parar.";
+  $("#seloOuvindo").textContent = "Estou ouvindo";
+}
+function iniciarGravacaoAudio(){
+  textoOuvido = "";
+  var el = $("#aoVivo"); if(el) el.textContent = "";
+  $("#aoVivo").setAttribute("data-vazio", "Estou gravando. O texto aparece quando você parar.");
+  navigator.mediaDevices.getUserMedia({audio:true}).then(function(fluxo){
+    if(S.tela !== "t-ouvindo"){ fluxo.getTracks().forEach(function(t){ t.stop(); }); return; }
+    var tipo = tipoDeAudio();
+    try{ gravador = tipo ? new MediaRecorder(fluxo, {mimeType:tipo}) : new MediaRecorder(fluxo); }
+    catch(e){ fluxo.getTracks().forEach(function(t){ t.stop(); }); ir("t-escrever"); return; }
+    pedacos = []; enviarAoParar = false;
+    gravador.ondataavailable = function(ev){ if(ev.data && ev.data.size) pedacos.push(ev.data); };
+    gravador.onstop = function(){
+      clearTimeout(timerGravacao);
+      fluxo.getTracks().forEach(function(t){ t.stop(); });
+      var g = gravador; gravador = null;
+      gravando = false; document.body.classList.remove("ouvindo");
+      if(enviarAoParar) enviarAudio(new Blob(pedacos, {type:(g && g.mimeType) || tipo || "audio/webm"}));
+    };
+    gravador.start();
+    mostrarOuvindo();
+    // não deixa a gravação ficar ligada para sempre
+    timerGravacao = setTimeout(function(){ if(gravador) $("#btnParar").click(); }, TEMPO_MAXIMO_GRAVACAO);
+  }).catch(function(err){
+    S.micOk = false;
+    $("#tituloOuvindo").textContent = "O microfone está bloqueado";
+    $("#subOuvindo").textContent = (err && err.name === "NotAllowedError")
+      ? "Toque no cadeado ao lado do endereço e libere o microfone. Ou responda escrevendo."
+      : "Não encontrei um microfone neste aparelho. Você pode responder escrevendo.";
+    $("#seloOuvindo").textContent = "Microfone bloqueado";
+    $("#btnParar").hidden = true; $("#btnMicDeNovo").hidden = true;
+    falar("O microfone não funcionou. Você pode responder escrevendo.");
+  });
+  return true;
+}
+function encerrarAudio(enviar){
+  if(!gravador || gravador.state === "inactive") return false;
+  enviarAoParar = enviar;
+  try{ gravador.stop(); }catch(e){ return false; }
+  return true;
+}
+function enviarAudio(blob){
+  S.aguardandoTranscricao = true;
+  ir("t-processando");
+  var controle = ("AbortController" in window) ? new AbortController() : null;
+  var timer = setTimeout(function(){ if(controle) controle.abort(); }, 35000);
+  fetch(API_BASE + "/api/transcrever", {
+    method:"POST", headers:{"Content-Type": blob.type || "audio/webm"}, body:blob,
+    signal: controle ? controle.signal : undefined
+  }).then(function(r){
+    return r.json().then(function(c){ if(!r.ok || !c || !c.ok) throw new Error("falhou"); return c.texto; });
+  }).then(function(texto){
+    clearTimeout(timer); S.aguardandoTranscricao = false;
+    if(S.tela !== "t-processando") return;
+    texto = String(texto || "").trim();
+    if(!texto){ ir("t-erro"); return; }
+    S.rascunho = texto;
+    tratarResposta(texto);
+  }).catch(function(){
+    clearTimeout(timer); S.aguardandoTranscricao = false;
+    if(S.tela !== "t-processando") return;
+    S.rascunho = "";
+    ir("t-escrever");
+    falar("Não consegui entender o áudio agora. Escreva a resposta, por favor.");
+  });
+}
 
 function iniciarGravacao(){
-  if(!SR){ ir("t-escrever"); return false; }
+  if(!SR){
+    if(podeGravarAudio()) return iniciarGravacaoAudio();
+    ir("t-escrever"); return false;
+  }
   textoOuvido = ""; encerrando = false;
-  var el = $("#aoVivo"); if(el) el.textContent = "";
+  var el = $("#aoVivo"); if(el){ el.textContent = ""; el.setAttribute("data-vazio", "O que você falar aparece aqui…"); }
   try{ if(rec){ rec.onend = null; rec.abort(); } }catch(e){}
   try{ rec = new SR(); }catch(e){ ir("t-escrever"); return false; }
 
@@ -223,6 +316,7 @@ function iniciarGravacao(){
 }
 
 function pararGravacao(){
+  encerrarAudio(false);
   encerrando = true;
   if(rec){ try{ rec.stop(); }catch(e){} }
   gravando = false;
@@ -669,6 +763,7 @@ document.addEventListener("click", function(e){
 });
 
 $("#btnParar").addEventListener("click", function(){
+  if(encerrarAudio(true)) return; // o texto chega depois, pelo servidor
   pararGravacao();
   var t = textoOuvido.trim();
   if(!t){ ir("t-erro"); return; }
@@ -1345,7 +1440,7 @@ function aoEntrar(id){
       var n1 = 0;
       $("#fraseProc").textContent = FRASES[0];
       timerFrases = setInterval(function(){ n1 = (n1 + 1) % FRASES.length; $("#fraseProc").textContent = FRASES[n1]; }, 1100);
-      timerAuto = setTimeout(function(){ tratarResposta(S.rascunho); }, 2000);
+      if(!S.aguardandoTranscricao) timerAuto = setTimeout(function(){ tratarResposta(S.rascunho); }, 2000);
       break;
     case "t-confirmar":
       $("#citacao").textContent = "“" + (S.rascunho || "") + "”";
@@ -1476,7 +1571,16 @@ document.addEventListener("click", function(e){
 /* ============================================================
    17. INÍCIO
    ============================================================ */
-if(!SR) S.micOk = false;
+/* Pergunta ao servidor se a transcrição de áudio está ligada. */
+S.recursos = {ia:false, transcricao:false};
+(function(){
+  var controle = ("AbortController" in window) ? new AbortController() : null;
+  setTimeout(function(){ if(controle) controle.abort(); }, 5000);
+  fetch(API_BASE + "/api/recursos", {signal: controle ? controle.signal : undefined})
+    .then(function(r){ return r.json(); })
+    .then(function(c){ if(c && c.ok) S.recursos = {ia:!!c.ia, transcricao:!!c.transcricao}; })
+    .catch(function(){});
+})();
 aplicarModo();
 ir("t-inicio");
 verificarProgressoGuardado();
