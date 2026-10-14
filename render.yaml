@@ -1,0 +1,29 @@
+# Configuração de hospedagem no Render (tarefa 7.1).
+# Um único serviço entrega o app (pasta prototipo) e a API (pasta servidor)
+# no mesmo endereço HTTPS. Ver docs/deploy.md.
+services:
+  - type: web
+    name: fala-curriculo
+    runtime: node
+    plan: free
+    buildCommand: npm ci --prefix servidor
+    startCommand: npm start --prefix servidor
+    healthCheckPath: /api/saude
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: HOST
+        value: 0.0.0.0
+      - key: CONFIAR_PROXY
+        value: "1"
+      - key: NODE_VERSION
+        value: "22"
+      # Valores secretos: preencher no painel do Render, nunca no Git.
+      - key: IA_PROVEDOR
+        sync: false
+      - key: IA_API_KEY
+        sync: false
+      - key: TRANSCRICAO_PROVEDOR
+        sync: false
+      - key: TRANSCRICAO_API_KEY
+        sync: false
