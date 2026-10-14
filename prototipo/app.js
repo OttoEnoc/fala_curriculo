@@ -1214,7 +1214,30 @@ var DISPONIBILIDADE = {
   "Só de casa":"Disponível para trabalho em casa (remoto)",
   "Dos dois jeitos":"Disponível para trabalho presencial ou em casa"
 };
-function textoPDF(t){ return String(t == null ? "" : t).replace(/\s+/g, " ").trim(); }
+/*
+  A fonte padrão do jsPDF (Helvetica) só desenha os caracteres da tabela
+  Windows-1252, que inclui todos os acentos do português (ã, ç, é, ê, õ...).
+  Outros caracteres (emoji, setas, letras de outras línguas) saem quebrados,
+  então são trocados por um equivalente simples ou removidos.
+*/
+var CP1252_EXTRA = "€‚ƒ„…†‡ˆ‰Š‹ŒŽ‘’“”•–—˜™š›œžŸ";
+var TROCAS_PDF = {"→":"->","←":"<-","≥":">=","≤":"<=","✓":"","✔":"","★":"*","−":"-","‐":"-","‑":"-"};
+function caractereNoPDF(c){
+  var n = c.charCodeAt(0);
+  return (n >= 32 && n <= 126) || (n >= 160 && n <= 255) || CP1252_EXTRA.indexOf(c) >= 0;
+}
+function textoPDF(t){
+  t = String(t == null ? "" : t).normalize("NFC");
+  var saida = "";
+  Array.from(t).forEach(function(c){
+    if(caractereNoPDF(c)){ saida += c; return; }
+    if(Object.prototype.hasOwnProperty.call(TROCAS_PDF, c)){ saida += TROCAS_PDF[c]; return; }
+    var simples = c.normalize("NFKD").replace(/[\u0300-\u036f]/g, "");
+    if(simples && Array.from(simples).every(caractereNoPDF)){ saida += simples; return; }
+    if(/\s/.test(c)) saida += " ";
+  });
+  return saida.replace(/\s+/g, " ").trim();
+}
 function textoDisponibilidade(m){ return DISPONIBILIDADE[m] || m || ""; }
 function inicialMaiuscula(t){ t = String(t || ""); return t.charAt(0).toUpperCase() + t.slice(1); }
 function informacoesAdicionais(cv){
