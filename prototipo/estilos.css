@@ -213,9 +213,25 @@ body.modo-ajuda .sub{font-size:clamp(18px,4.6vw,22px)}
 @media (prefers-reduced-motion: reduce){
   *,*::before,*::after{animation-duration:.01ms !important;animation-iteration-count:1 !important;transition-duration:.01ms !important}
 }
+/* Versão para imprimir: só o currículo, em uma folha A4, em preto e branco legível. */
+.cv-impressao{display:none}
+@page{size:A4;margin:16mm 18mm}
 @media print{
-  body{background:#fff}
-  .barra,.acoes,.painel,.rodape-nota,.selo{display:none !important}
-  .tela{border:0;box-shadow:none;padding:0;min-height:0}
-  .cv{border:0;padding:0}
+  html,body{background:#fff !important;color:#000 !important;height:auto}
+  body.tem-impressao .app,body.tem-impressao .painel{display:none !important}
+  body.tem-impressao .cv-impressao{display:block}
+  body:not(.tem-impressao) .barra,body:not(.tem-impressao) .acoes,body:not(.tem-impressao) .painel,
+  body:not(.tem-impressao) .rodape-nota,body:not(.tem-impressao) .selo{display:none !important}
+  .cv-impressao{font-family:"Helvetica","Arial",sans-serif;font-size:11pt;line-height:1.35;color:#000}
+  .cv-impressao h2{font-size:20pt;margin:0 0 2pt}
+  .cv-impressao .cargo{font-size:12pt;font-weight:700;color:#17457E;margin:0 0 4pt}
+  .cv-impressao .contato{margin:0 0 2pt}
+  .cv-impressao .local{color:#333;margin:0 0 8pt;padding-bottom:6pt;border-bottom:1.5pt solid #000}
+  .cv-impressao h3{font-size:10pt;text-transform:uppercase;letter-spacing:.03em;color:#1E6B45;
+    border-bottom:.75pt solid #888;margin:12pt 0 4pt;padding-bottom:2pt;break-after:avoid}
+  .cv-impressao p{margin:0 0 3pt}
+  .cv-impressao .item-t{font-weight:700;margin-top:6pt}
+  .cv-impressao .item-s{color:#333}
+  .cv-impressao ul{margin:0;padding-left:14pt}
+  .cv-impressao .bloco{break-inside:avoid}
 }

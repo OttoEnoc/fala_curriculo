@@ -1349,6 +1349,41 @@ $("#btnBaixar").addEventListener("click", function(){
   }else{ avisar("Este navegador bloqueou o download. Use o botão de imprimir."); }
 });
 
+/* Versão para imprimir: segue o mesmo modelo do PDF (docs/modelo-curriculo.md). */
+function htmlImpressao(cv){
+  var h = '<h2>' + esc(cv.nome) + '</h2>';
+  if(cv.titulo) h += '<p class="cargo">Objetivo: ' + esc(inicialMaiuscula(cv.titulo)) + '</p>';
+  var contato = [cv.telefone ? cv.telefone + " (WhatsApp)" : "", cv.email, cv.linkedin].filter(Boolean).join("   ·   ");
+  if(contato) h += '<p class="contato">' + esc(contato) + '</p>';
+  h += '<p class="local">' + esc(cv.local || "") + '</p>';
+  if(cv.resumo) h += '<h3>Resumo</h3><p>' + esc(cv.resumo) + '</p>';
+  if(cv.experiencia && cv.experiencia.length){
+    h += '<h3>Experiência</h3>';
+    cv.experiencia.forEach(function(e){
+      h += '<div class="bloco"><p class="item-t">' + esc([inicialMaiuscula(e.cargo), e.empresa].filter(Boolean).join(" — ")) + '</p>';
+      if(e.periodo) h += '<p class="item-s">' + esc(e.periodo) + '</p>';
+      if(e.atividades) h += '<p>' + esc(inicialMaiuscula(e.atividades)) + '</p>';
+      if(e.maisSobre) h += '<p>' + esc(inicialMaiuscula(e.maisSobre)) + '</p>';
+      h += '</div>';
+    });
+  }else if(cv.primeiroEmprego){ h += '<h3>Experiência</h3><p>Em busca do primeiro emprego.</p>'; }
+  function lista(titulo, itens){
+    if(itens && itens.length) h += '<h3>' + titulo + '</h3><ul>' + itens.map(function(t){ return '<li>' + esc(inicialMaiuscula(t)) + '</li>'; }).join("") + '</ul>';
+  }
+  lista("Formação", cv.formacao);
+  lista("Cursos", cv.cursos);
+  if(cv.idiomas) h += '<h3>Idiomas</h3><p>' + esc(inicialMaiuscula(cv.idiomas)) + '</p>';
+  lista("Informações adicionais", informacoesAdicionais(cv));
+  return h;
+}
+function prepararImpressao(){
+  var cv = S.cv;
+  if(!cv){ document.body.classList.remove("tem-impressao"); return; }
+  $("#cvImpressao").innerHTML = htmlImpressao(cv);
+  document.body.classList.add("tem-impressao");
+}
+window.addEventListener("beforeprint", prepararImpressao);
+
 $("#btnImprimir").addEventListener("click", function(){
   $("#avisoEnvio").hidden = true;
   var doc = gerarPDF();
@@ -1356,6 +1391,7 @@ $("#btnImprimir").addEventListener("click", function(){
   if(doc){
     try{ var w = window.open(doc.output("bloburl"), "_blank"); if(w){ avisar("O PDF abriu em outra aba para imprimir." + AVISO_APAGADO); return; } }catch(e){}
   }
+  prepararImpressao();
   window.print();
 });
 
