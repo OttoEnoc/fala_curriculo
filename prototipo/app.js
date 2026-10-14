@@ -1326,21 +1326,27 @@ function nomeArquivo(){
   return "curriculo-" + (n || "fala-curriculo") + ".pdf";
 }
 
-$("#btnBaixar").addEventListener("click", function(){
-  $("#avisoEnvio").hidden = true;
-  var doc = gerarPDF();
-  if(!doc){ avisar("Não consegui montar o PDF agora. Tente imprimir a página."); return; }
-  var blob = doc.output("blob");
+/* Baixa o PDF no aparelho. Devolve true se o navegador aceitou o download. */
+function baixarPDF(doc){
   try{
-    var url = URL.createObjectURL(blob);
+    var url = URL.createObjectURL(doc.output("blob"));
     var a = document.createElement("a");
     a.href = url; a.download = nomeArquivo();
     document.body.appendChild(a); a.click(); a.remove();
     setTimeout(function(){ URL.revokeObjectURL(url); }, 4000);
+    return true;
+  }catch(e){ return false; }
+}
+
+$("#btnBaixar").addEventListener("click", function(){
+  $("#avisoEnvio").hidden = true;
+  var doc = gerarPDF();
+  if(!doc){ avisar("Não consegui montar o PDF agora. Tente imprimir a página."); return; }
+  if(baixarPDF(doc)){
     limparAposPDF();
     avisar("O PDF do currículo foi baixado." + AVISO_APAGADO);
     falar("Pronto. O PDF do currículo foi baixado." + AVISO_APAGADO);
-  }catch(e){ avisar("Este navegador bloqueou o download. Use o botão de imprimir."); }
+  }else{ avisar("Este navegador bloqueou o download. Use o botão de imprimir."); }
 });
 
 $("#btnImprimir").addEventListener("click", function(){
@@ -1353,27 +1359,50 @@ $("#btnImprimir").addEventListener("click", function(){
   window.print();
 });
 
+/*
+  WhatsApp:
+  1. Celular com compartilhamento de arquivos (Android e iPhone, em HTTPS):
+     abre a tela de compartilhar do aparelho com o PDF anexado.
+  2. Sem esse recurso (computador, navegador antigo): baixa o PDF e abre o
+     WhatsApp com uma mensagem pronta; a pessoa anexa o arquivo baixado.
+*/
 $("#btnWhats").addEventListener("click", function(){
   $("#avisoEnvio").hidden = true;
   var cv = S.cv || cvBase();
   var doc = gerarPDF();
-  var blob = doc ? doc.output("blob") : null;
   var arq = null;
-  try{ if(blob) arq = new File([blob], nomeArquivo(), {type:"application/pdf"}); }catch(e){}
+  try{ if(doc) arq = new File([doc.output("blob")], nomeArquivo(), {type:"application/pdf"}); }catch(e){}
   if(arq && navigator.canShare && navigator.canShare({files:[arq]})){
-    navigator.share({files:[arq], title:"Meu currículo", text:"Segue o meu currículo."})
-      .then(function(){ limparAposPDF(); avisar("Currículo enviado." + AVISO_APAGADO); falar("Currículo enviado."); })
-      .catch(function(){ abrirWhatsTexto(cv); });
-  }else{ abrirWhatsTexto(cv); }
+    navigator.share({files:[arq], title:"Meu currículo", text:"Olá! Segue o meu currículo."})
+      .then(function(){
+        limparAposPDF();
+        avisar("Pronto. Escolha o contato no WhatsApp para mandar o PDF." + AVISO_APAGADO);
+        falar("Pronto. Escolha o contato no WhatsApp para mandar o currículo.");
+      })
+      .catch(function(err){
+        if(err && err.name === "AbortError") return; // a pessoa desistiu de compartilhar
+        abrirWhatsSemAnexo(cv, doc);
+      });
+  }else{ abrirWhatsSemAnexo(cv, doc); }
 });
-function abrirWhatsTexto(cv){
-  var texto = "*" + cv.nome + "*\n" + [cv.titulo, cv.local].filter(Boolean).join(" · ") + "\n\n" + textoDoCV(cv);
-  var w = window.open("https://wa.me/?text=" + encodeURIComponent(texto), "_blank", "noopener");
-  if(!w) avisar("O navegador bloqueou a abertura do WhatsApp. Guarde o PDF no aparelho e envie pelo aplicativo.");
-  else{
-    limparAposPDF();
-    avisar("No protótipo, o WhatsApp recebe o currículo em texto. O envio do PDF em anexo entra na versão final." + AVISO_APAGADO);
+function abrirWhatsSemAnexo(cv, doc){
+  var baixou = doc ? baixarPDF(doc) : false;
+  var texto = baixou
+    ? "Olá! Segue o meu currículo em PDF.\n\n*" + cv.nome + "*\n" + [cv.titulo, cv.telefone].filter(Boolean).join(" · ")
+    : "*" + cv.nome + "*\n" + [cv.titulo, cv.local].filter(Boolean).join(" · ") + "\n\n" + textoDoCV(cv);
+  var w = window.open("https://wa.me/?text=" + encodeURIComponent(texto), "_blank");
+  if(w){ try{ w.opener = null; }catch(e){} }
+  if(baixou) limparAposPDF();
+  if(!w){
+    avisar(baixou
+      ? "O PDF foi baixado, mas o navegador bloqueou o WhatsApp. Abra o WhatsApp e anexe o arquivo " + nomeArquivo() + "." + AVISO_APAGADO
+      : "O navegador bloqueou a abertura do WhatsApp. Use o botão de imprimir.");
+    return;
   }
+  avisar(baixou
+    ? "O PDF foi baixado. No WhatsApp, escolha o contato, toque no clipe e anexe o arquivo " + nomeArquivo() + "." + AVISO_APAGADO
+    : "O WhatsApp recebeu o currículo em texto, porque este navegador não conseguiu montar o PDF.");
+  falar(baixou ? "O PDF foi baixado. No WhatsApp, toque no clipe e anexe o arquivo do currículo." : "O WhatsApp recebeu o currículo em texto.");
 }
 
 $("#btnRecomecar").addEventListener("click", function(){
