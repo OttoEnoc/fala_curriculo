@@ -989,7 +989,7 @@ function renderCV(cv){
   if(cv.telefone) h += '<p>Telefone e WhatsApp: ' + esc(cv.telefone) + '</p>';
   if(cv.email) h += '<p>E-mail: ' + esc(cv.email) + '</p>';
   if(cv.linkedin) h += '<p>LinkedIn: ' + esc(cv.linkedin) + '</p>';
-  var extras = [cv.cnh, cv.modalidade].filter(Boolean).join(" · ");
+  var extras = informacoesAdicionais(cv).join(" · ");
   if(extras) h += '<p class="item-s">' + esc(extras) + '</p>';
   return h;
 }
@@ -1208,60 +1208,92 @@ $("#btnOuvirCV").addEventListener("click", function(){ falar(textoDoCV(S.cv || c
    ============================================================ */
 function avisar(msg){ $("#txtAvisoEnvio").textContent = msg; $("#avisoEnvio").hidden = false; }
 
+/* Textos de apresentação: deixam as opções do roteiro legíveis no currículo. */
+var DISPONIBILIDADE = {
+  "Sim, no local de trabalho":"Disponível para trabalho presencial",
+  "Só de casa":"Disponível para trabalho em casa (remoto)",
+  "Dos dois jeitos":"Disponível para trabalho presencial ou em casa"
+};
+function textoPDF(t){ return String(t == null ? "" : t).replace(/\s+/g, " ").trim(); }
+function textoDisponibilidade(m){ return DISPONIBILIDADE[m] || m || ""; }
+function inicialMaiuscula(t){ t = String(t || ""); return t.charAt(0).toUpperCase() + t.slice(1); }
+function informacoesAdicionais(cv){
+  return [cv.cnh, textoDisponibilidade(cv.modalidade), cv.idade ? cv.idade + " anos" : ""].filter(Boolean);
+}
+
+/* Monta o PDF seguindo docs/modelo-curriculo.md. "escala" reduz as letras
+   quando o conteúdo não cabe em uma página. */
+function montarPDF(cv, escala){
+  var doc = new window.jspdf.jsPDF({unit:"pt", format:"a4"});
+  var L = 50, TOPO = 54, W = 595 - L * 2, FIM = 842 - 48, y = TOPO;
+  var PRETO = "#17242B", CINZA = "#4A5963", AZUL = "#17457E", VERDE = "#1E6B45";
+  function tam(n){ return Math.round(n * escala * 10) / 10; }
+  function linha(txt, t, estilo, cor, depois, recuo){
+    txt = textoPDF(txt);
+    if(!txt) return;
+    recuo = recuo || 0;
+    doc.setFont("helvetica", estilo || "normal");
+    doc.setFontSize(tam(t));
+    doc.setTextColor(cor || PRETO);
+    var ls = doc.splitTextToSize(txt, W - recuo);
+    for(var k = 0; k < ls.length; k++){
+      if(y > FIM){ doc.addPage(); y = TOPO; }
+      doc.text(ls[k], L + recuo, y);
+      y += tam(t) * 1.32;
+    }
+    y += tam(depois || 0);
+  }
+  function secao(t){
+    y += tam(12);
+    if(y > FIM - tam(40)){ doc.addPage(); y = TOPO; }
+    linha(t.toUpperCase(), 10.5, "bold", VERDE, 0);
+    doc.setDrawColor("#9AA5AD"); doc.setLineWidth(0.8);
+    doc.line(L, y - tam(8), L + W, y - tam(8));
+    y += tam(5);
+  }
+  function item(t){ linha("•  " + t, 11, "normal", PRETO, 1, 0); }
+
+  // Cabeçalho: nome, objetivo e contato
+  linha(cv.nome, 22, "bold", PRETO, 3);
+  if(cv.titulo) linha("Objetivo: " + inicialMaiuscula(cv.titulo), 12.5, "bold", AZUL, 3);
+  var contato = [cv.telefone ? cv.telefone + " (WhatsApp)" : "", cv.email, cv.linkedin].filter(Boolean).join("   ·   ");
+  linha(contato, 10.5, "normal", PRETO, 1);
+  linha(cv.local, 10.5, "normal", CINZA, 2);
+  doc.setDrawColor(PRETO); doc.setLineWidth(1.4);
+  doc.line(L, y, L + W, y);
+  y += tam(8);
+
+  if(cv.resumo){ secao("Resumo"); linha(cv.resumo, 11, "normal", PRETO, 0); }
+
+  if(cv.experiencia && cv.experiencia.length){
+    secao("Experiência");
+    cv.experiencia.forEach(function(e, k){
+      if(k) y += tam(7);
+      linha([inicialMaiuscula(e.cargo), e.empresa].filter(Boolean).join(" — "), 12, "bold", PRETO, 0);
+      linha(e.periodo, 10.5, "normal", CINZA, 1);
+      linha(inicialMaiuscula(e.atividades), 11, "normal", PRETO, 0);
+      linha(inicialMaiuscula(e.maisSobre), 11, "normal", PRETO, 0);
+    });
+  }else if(cv.primeiroEmprego){
+    secao("Experiência");
+    linha("Em busca do primeiro emprego.", 11, "normal", PRETO, 0);
+  }
+  if(cv.formacao && cv.formacao.length){ secao("Formação"); cv.formacao.forEach(item); }
+  if(cv.cursos && cv.cursos.length){ secao("Cursos"); cv.cursos.forEach(function(c){ item(inicialMaiuscula(c)); }); }
+  if(cv.idiomas){ secao("Idiomas"); linha(inicialMaiuscula(cv.idiomas), 11, "normal", PRETO, 0); }
+  var extras = informacoesAdicionais(cv);
+  if(extras.length){ secao("Informações adicionais"); extras.forEach(item); }
+  return doc;
+}
+
 function gerarPDF(){
   var cv = S.cv || cvBase();
   if(!window.jspdf || !window.jspdf.jsPDF) return null;
-  var doc = new window.jspdf.jsPDF({unit:"pt", format:"a4"});
-  var L = 56, y = 70, W = 595 - L * 2;
-  function linha(txt, tam, estilo, cor, espaco){
-    doc.setFont("helvetica", estilo || "normal");
-    doc.setFontSize(tam);
-    doc.setTextColor(cor || "#17242B");
-    var ls = doc.splitTextToSize(String(txt), W);
-    for(var k = 0; k < ls.length; k++){
-      if(y > 780){ doc.addPage(); y = 70; }
-      doc.text(ls[k], L, y);
-      y += tam + 4;
-    }
-    y += (espaco || 0);
+  var escalas = [1, 0.92, 0.86, 0.8], doc = null;
+  for(var k = 0; k < escalas.length; k++){
+    doc = montarPDF(cv, escalas[k]);
+    if(doc.getNumberOfPages() === 1) break;
   }
-  function titulo(t){
-    y += 10;
-    linha(t.toUpperCase(), 10, "bold", "#1E6B45", 2);
-    doc.setDrawColor("#D8CDB6"); doc.setLineWidth(1);
-    doc.line(L, y - 8, L + W, y - 8);
-    y += 4;
-  }
-  linha(cv.nome, 22, "bold", "#17242B", 2);
-  linha([cv.titulo, cv.local].filter(Boolean).join("  ·  "), 11, "normal", "#17457E", 6);
-  if(cv.resumo) linha(cv.resumo, 11, "normal", "#17242B", 4);
-  if(cv.experiencia && cv.experiencia.length){
-    titulo("Experiência");
-    cv.experiencia.forEach(function(e){
-      linha([e.cargo, e.empresa].filter(Boolean).join(" — "), 12, "bold", "#17242B", 0);
-      if(e.periodo) linha(e.periodo, 10, "normal", "#54646E", 0);
-      if(e.atividades) linha(e.atividades, 11, "normal", "#17242B", 0);
-      if(e.maisSobre) linha(e.maisSobre, 11, "normal", "#17242B", 4);
-    });
-  }else if(cv.primeiroEmprego){
-    titulo("Experiência");
-    linha("Em busca do primeiro emprego.", 11, "normal", "#17242B", 0);
-  }
-  if(cv.formacao && cv.formacao.length){
-    titulo("Formação");
-    cv.formacao.forEach(function(f){ linha("• " + f, 11, "normal", "#17242B", 0); });
-  }
-  if(cv.cursos && cv.cursos.length){
-    titulo("Cursos");
-    cv.cursos.forEach(function(c){ linha("• " + c, 11, "normal", "#17242B", 0); });
-  }
-  if(cv.idiomas){ titulo("Idiomas"); linha(cv.idiomas, 11, "normal", "#17242B", 0); }
-  titulo("Contato");
-  if(cv.telefone) linha("Telefone e WhatsApp: " + cv.telefone, 11, "normal", "#17242B", 0);
-  if(cv.email) linha("E-mail: " + cv.email, 11, "normal", "#17242B", 0);
-  if(cv.linkedin) linha("LinkedIn: " + cv.linkedin, 11, "normal", "#17242B", 0);
-  var extras = [cv.cnh, cv.modalidade].filter(Boolean).join("  ·  ");
-  if(extras) linha(extras, 10, "normal", "#54646E", 0);
   return doc;
 }
 
