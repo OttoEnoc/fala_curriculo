@@ -1,0 +1,28 @@
+# Roda os testes do servidor em cada pull request e em cada push na main.
+# O Render só publica quando esta verificação passa (render.yaml, tarefa 7.4).
+name: Testes
+
+on:
+  pull_request:
+    branches: [main]
+  push:
+    branches: [main]
+
+jobs:
+  servidor:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: servidor
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: servidor/package-lock.json
+      - run: npm ci
+      - run: npm test
+      - name: Conferir sintaxe do app
+        working-directory: prototipo
+        run: for f in *.js; do node --check "$f"; done

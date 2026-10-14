@@ -9,6 +9,10 @@ services:
     buildCommand: npm ci --prefix servidor
     startCommand: npm start --prefix servidor
     healthCheckPath: /api/saude
+    # Publicação automática (7.4): cada commit na main é publicado
+    # depois que as verificações do GitHub (testes) passam.
+    autoDeployTrigger: checksPass
+    branch: main
     envVars:
       - key: NODE_ENV
         value: production
