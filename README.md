@@ -41,9 +41,9 @@ Usamos os nomes definidos na planilha. Exemplos:
 - Usar dados fictícios nos testes.
 - Evitar alterações sem relação com a tarefa da branch.
 
-## Executar o backend localmente
+## Executar localmente
 
-Pré-requisito: Node.js LTS instalado.
+Pré-requisito: Node.js 22 LTS instalado.
 
 No terminal, a partir da raiz do projeto:
 
@@ -56,17 +56,41 @@ npm start
 No Windows, se o PowerShell bloquear a execução de `npm`,
 utilizar `npm.cmd` no lugar de `npm`.
 
-Com o servidor em execução, acessar:
+Com o servidor em execução, abrir o app em:
 
-http://localhost:3001/api/saude
+http://127.0.0.1:3001/
 
-Resposta esperada:
-
-```json
-{"ok":true}
-```
+Conferir o servidor em http://127.0.0.1:3001/api/saude
+(resposta esperada: `{"ok":true}`).
 
 Para encerrar o servidor, pressionar Ctrl + C no terminal.
 
-O frontend continua sendo executado pela extensão de prévia do VS Code.
-A integração entre frontend, backend e IA será desenvolvida no bloco 2.
+O app também pode ser aberto pela extensão de prévia do VS Code:
+em `localhost`, ele chama a API em `http://127.0.0.1:3001`.
+
+### Configuração
+
+Copie `servidor/.env.exemplo` para `servidor/.env` e ajuste:
+
+- `IA_PROVEDOR`: `nenhum` (currículo básico), `simulado` (testes, sem IA)
+  ou `anthropic` (com `IA_API_KEY`).
+- `TRANSCRICAO_PROVEDOR`: `nenhum`, `simulado` (testes) ou `openai`
+  (com `TRANSCRICAO_API_KEY`).
+
+Nunca envie o `.env` ao Git.
+
+### Testes
+
+```bash
+cd servidor
+npm test
+```
+
+## Documentação
+
+- `docs/politica-dados.md`: o que é guardado e por quanto tempo.
+- `docs/escolha-stt.md` e `docs/escolha-tts.md`: serviços de voz.
+- `docs/teste-voz.md`: protocolo de teste de sotaque e barulho.
+- `docs/modelo-curriculo.md` e `docs/teste-pdf-acentos.md`: PDF.
+- `docs/deploy.md`: publicação com HTTPS no Render.
+- `docs/tcc/`: requisitos, fluxo, design, arquitetura e resultados dos testes.

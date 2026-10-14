@@ -23,17 +23,25 @@ O frontend está na pasta `prototipo`:
 - `estilos.css`: estilos da interface.
 - `roteiro.js`: seções, perguntas, opções e condições.
 - `app.js`: navegação, estado, validações, voz e geração do currículo.
+- `armazenamento.js`: progresso guardado no IndexedDB do aparelho.
+- `sw.js`: service worker para uso sem internet.
+- `manifest.webmanifest` e `icones/`: instalação como app.
+- `privacidade.html`: política de privacidade.
 
 O protótipo usa JavaScript sem framework.
 
 O reconhecimento de fala e a leitura em voz alta usam recursos do
-navegador. O PDF utiliza jsPDF.
+navegador. Quando o navegador não reconhece fala, o app grava o áudio e
+usa `POST /api/transcrever`. O PDF utiliza jsPDF.
 
-O protótipo consegue montar o currículo diretamente com as respostas.
-Não presumir que a integração com uma IA externa esteja implementada.
+O app envia as respostas para `POST /api/curriculo`. Se o servidor ou a
+IA falharem, o currículo é montado no aparelho com as respostas.
+A IA só é usada quando um provedor está configurado no servidor
+(`IA_PROVEDOR`); sem ele, o servidor devolve o currículo básico.
 
-A persistência das respostas no aparelho ainda é uma etapa planejada.
-Não confundir dados mantidos em memória com dados salvos permanentemente.
+As respostas ficam guardadas no IndexedDB do aparelho por no máximo
+7 dias e são apagadas depois de gerar o PDF ou pelo botão de apagar.
+Só dizer que os dados estão salvos quando a gravação funcionou.
 
 ## Fluxo principal
 
@@ -120,26 +128,31 @@ com Node.js e Express.
 
 Arquivos:
 
-- `server.js`: inicialização do servidor e definição das rotas.
-- `package.json`: dependências e comando de inicialização.
-- `package-lock.json`: versões das dependências.
+- `server.js`: criação do app Express e definição das rotas.
+- `curriculo/montar.js`: currículo básico a partir das respostas.
+- `ia/prompt.js`: instruções da IA (ficam só no servidor).
+- `ia/validar.js`: confere a resposta da IA e descarta o que foi inventado.
+- `ia/provedores/`: provedores de IA (`anthropic`, `simulado`, `nenhum`).
+- `transcricao/`: provedores de transcrição (`openai`, `simulado`, `nenhum`).
+- `limite.js`: limite de uso por IP.
+- `test/`: testes com `node --test` (`npm test`).
+- `.env.exemplo`: variáveis de ambiente, só com valores fictícios.
 
-O servidor é iniciado com `npm start` dentro da pasta `servidor`
-e está configurado para execução local na porta 3001.
+O servidor é iniciado com `npm start` dentro da pasta `servidor`,
+na porta 3001, e também entrega a pasta `prototipo`.
 
-Rota implementada e verificada localmente:
+Rotas:
 
 - `GET /api/saude`: retorna `{"ok":true}`.
+- `GET /api/recursos`: informa se IA e transcrição estão ligadas.
+- `POST /api/curriculo`: recebe as respostas e devolve o currículo.
+- `POST /api/transcrever`: recebe áudio e devolve o texto.
 
-Ainda não implementado:
+Verificado com testes automáticos e provedores simulados. Ainda não
+verificado com chaves reais de IA e de transcrição.
 
-- `POST /api/curriculo`: receber respostas e organizar o currículo.
-- `POST /api/transcrever`: receber áudio e devolver a transcrição.
-- Integração do frontend com o backend.
-- Integração com serviços externos de IA e transcrição.
-
-O provedor de IA e o serviço de transcrição ainda serão escolhidos.
-Manter essas integrações substituíveis.
+O provedor de IA e o serviço de transcrição ainda serão confirmados pela
+dupla (ver `docs/escolha-stt.md`). Manter essas integrações substituíveis.
 
 Prever limite de uso, tempo máximo de espera e tratamento de erros.
 Se a IA falhar, preservar a possibilidade de gerar um currículo básico
