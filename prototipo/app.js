@@ -247,8 +247,14 @@ function enviarAudio(blob){
   });
 }
 
+/*
+  Ordem de preferência:
+  1. reconhecimento do navegador, com o texto aparecendo enquanto a pessoa fala;
+  2. gravação de áudio transcrita pelo servidor, quando o 1 não existe ou falha;
+  3. escrita.
+*/
 function iniciarGravacao(){
-  if(!SR){
+  if(!SR || S.srFalhou){
     if(podeGravarAudio()) return iniciarGravacaoAudio();
     ir("t-escrever"); return false;
   }
@@ -281,6 +287,14 @@ function iniciarGravacao(){
     gravando = false;
     document.body.classList.remove("ouvindo");
     var erro = ev && ev.error;
+    // o serviço de voz do navegador não está disponível: grava o áudio no lugar
+    var servicoFalhou = erro === "service-not-allowed" || erro === "language-not-supported" ||
+      (erro === "network" && navigator.onLine !== false);
+    if(servicoFalhou && podeGravarAudio()){
+      S.srFalhou = true; encerrando = true;
+      iniciarGravacaoAudio();
+      return;
+    }
     if(erro === "not-allowed" || erro === "service-not-allowed"){
       S.micOk = false;
       $("#tituloOuvindo").textContent = "O microfone está bloqueado";
