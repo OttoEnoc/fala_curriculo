@@ -36,6 +36,7 @@
     <button class="icon-btn" id="btnPainel" aria-label="Ver todas as telas"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><rect x="3" y="3" width="7" height="7" rx="2"/><rect x="14" y="3" width="7" height="7" rx="2"/><rect x="3" y="14" width="7" height="7" rx="2"/><rect x="14" y="14" width="7" height="7" rx="2"/></svg></button>
   </header>
 
+  <div class="aviso aviso-rede" id="avisoRede" role="status" hidden><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.3" stroke-linecap="round"><path d="M2 9a15 15 0 0 1 20 0M5.5 12.5a10 10 0 0 1 13 0M9 16a5 5 0 0 1 6 0M12 19.5v.01M3 3l18 18"/></svg><span>Sem internet agora. Você pode continuar respondendo por escrito.</span></div>
   <main class="palco" id="palco">
 
     <section class="tela" id="t-inicio" data-titulo="Boas-vindas">
@@ -374,7 +375,7 @@
     <section class="tela" id="t-offline" data-titulo="Sem internet">
       <span class="selo ambar">Não se preocupe</span>
       <h1>Sem internet agora</h1>
-      <p class="sub" id="subOffline">O sinal sumiu, mas as suas respostas já estão salvas no aparelho. Assim que a internet voltar, a gente continua de onde parou.</p>
+      <p class="sub" id="subOffline">O sinal sumiu, mas as suas respostas já estão salvas no aparelho. Sem internet, a voz não vira texto. Você pode escrever a resposta agora.</p>
       <svg class="ilustra" viewBox="0 0 280 150" role="img" aria-label="Cofre guardando os dados">
         <rect x="86" y="24" width="108" height="100" rx="14" fill="var(--ambar-suave)" stroke="var(--ambar)" stroke-width="3"/>
         <circle cx="140" cy="74" r="26" fill="var(--papel)" stroke="var(--ambar)" stroke-width="3"/>
@@ -382,7 +383,10 @@
         <rect x="128" y="70" width="24" height="18" rx="4" fill="var(--tinta)"/>
       </svg>
       <div class="cresce"></div>
-      <div class="acoes"><button class="btn btn--azul largura-total" id="btnTentarNet">Tentar de novo</button></div>
+      <div class="acoes">
+        <button class="btn btn--azul largura-total" id="btnEscreverOffline"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.3" stroke-linecap="round" stroke-linejoin="round"><path d="M4 20h4l10-10-4-4L4 16z"/></svg>Escrever a resposta</button>
+        <button class="btn btn--claro largura-total" id="btnTentarNet">Tentar falar de novo</button>
+      </div>
     </section>
 
   </main>

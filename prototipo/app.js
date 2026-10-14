@@ -155,7 +155,9 @@ $("#btnSom").addEventListener("click", function(){
    ============================================================ */
 var SR = window.SpeechRecognition || window.webkitSpeechRecognition;
 var rec = null, gravando = false, textoOuvido = "", encerrando = false;
-function temMic(){ return (!!SR || podeGravarAudio()) && S.micOk !== false; }
+function semInternet(){ return navigator.onLine === false; }
+// Sem internet, a voz não vira texto (nem no navegador nem no servidor): a escrita fica em primeiro lugar.
+function temMic(){ return (!!SR || podeGravarAudio()) && S.micOk !== false && !semInternet(); }
 
 /* ---- Gravação de áudio enviada ao servidor (quando o navegador não reconhece fala) ---- */
 var gravador = null, pedacos = [], enviarAoParar = false, timerGravacao = null;
@@ -307,7 +309,7 @@ function iniciarGravacao(){
       falar("O microfone está bloqueado. Você pode responder escrevendo.");
       return;
     }
-    if(erro === "network"){ ir("t-offline"); return; }
+    if(erro === "network"){ telaAntes = "t-pergunta"; ir("t-offline"); return; }
     if(erro === "no-speech"){
       $("#tituloOuvindo").textContent = "Não ouvi nada";
       $("#subOuvindo").textContent = "Toque no botão abaixo e fale mais perto do aparelho.";
@@ -1116,6 +1118,7 @@ function respostasParaEnvio(){
 
 var TEMPO_LIMITE_SERVIDOR = 25000;
 var AVISO_SEM_SERVIDOR = "Não consegui falar com o servidor agora. Montei o currículo só com as suas respostas, sem melhorar o texto.";
+var AVISO_SEM_INTERNET = "Você está sem internet. Montei o currículo só com as suas respostas, sem melhorar o texto.";
 
 function solicitarCurriculoAoServidor(){
   var controle = ("AbortController" in window) ? new AbortController() : null;
@@ -1176,7 +1179,7 @@ function prepararCV(){
     cv.nome = base.nome; cv.telefone = base.telefone; cv.email = base.email; cv.linkedin = base.linkedin;
     cv.primeiroEmprego = cv.experiencia.length === 0;
     finalizar(cv, corpo.origem === "basico" ? corpo.aviso : "");
-  }).catch(function(e){ finalizar(base, (e && e.aviso) || AVISO_SEM_SERVIDOR); });
+  }).catch(function(e){ finalizar(base, (e && e.aviso) || (semInternet() ? AVISO_SEM_INTERNET : AVISO_SEM_SERVIDOR)); });
 }
 
 $("#btnSimCerto").addEventListener("click", function(){
@@ -1461,14 +1464,37 @@ $("#btnApagarDados").addEventListener("click", function(){
 /* ============================================================
    14. OFFLINE
    ============================================================ */
+/*
+  Sem internet o fluxo continua: as perguntas, a escrita, a revisão e o PDF
+  funcionam no aparelho (sw.js guarda os arquivos do app). Só a voz e a
+  melhoria do texto pela IA dependem da internet.
+*/
 var telaAntes = null;
+function atualizarRede(){
+  $("#avisoRede").hidden = !semInternet();
+  if(S.tela === "t-pergunta") mostrarPergunta();
+}
 window.addEventListener("offline", function(){
-  if(S.tela !== "t-offline"){ telaAntes = S.tela; pararTudo(); ir("t-offline"); }
+  if(S.tela === "t-ouvindo"){ pararTudo(); telaAntes = "t-pergunta"; ir("t-offline"); }
+  atualizarRede();
 });
+window.addEventListener("online", atualizarRede);
 $("#btnTentarNet").addEventListener("click", function(){
-  if(navigator.onLine !== false) ir(telaAntes || "t-inicio", true);
-  else falar("A internet ainda não voltou. Suas respostas continuam guardadas.");
+  if(semInternet()){ falar("A internet ainda não voltou. Você pode escrever a resposta."); return; }
+  if(telaAntes === "t-pergunta" && S.iniciado){ mostrarPergunta(); return; }
+  ir(telaAntes || "t-inicio", true);
 });
+$("#btnEscreverOffline").addEventListener("click", function(){
+  calar();
+  if(S.iniciado && perguntaAtual()){ ir("t-escrever"); return; }
+  ir(telaAntes || "t-inicio", true);
+});
+
+if("serviceWorker" in navigator && (location.protocol === "https:" || /^(localhost|127\.0\.0\.1)$/.test(location.hostname))){
+  window.addEventListener("load", function(){
+    navigator.serviceWorker.register("./sw.js").catch(function(){});
+  });
+}
 
 /* ============================================================
    15. AO ENTRAR EM CADA TELA
@@ -1624,8 +1650,8 @@ function aoEntrar(id){
       var guardou = S.salvoNoAparelho
         ? "O sinal sumiu, mas as suas respostas já estão salvas no aparelho."
         : "O sinal sumiu, mas as suas respostas continuam nesta tela. Não feche o app.";
-      $("#subOffline").textContent = guardou + " Assim que a internet voltar, a gente continua de onde parou.";
-      falar(guardou + " Assim que a internet voltar, a gente continua.");
+      $("#subOffline").textContent = guardou + " Sem internet, a voz não vira texto. Você pode escrever a resposta agora.";
+      falar(guardou + " Sem internet, a voz não vira texto. Você pode escrever a resposta agora.");
       break;
   }
   atualizarRodape(id);
@@ -1716,6 +1742,7 @@ S.recursos = {ia:false, transcricao:false};
     .catch(function(){});
 })();
 aplicarModo();
+$("#avisoRede").hidden = !semInternet();
 ir("t-inicio");
 verificarProgressoGuardado();
 
