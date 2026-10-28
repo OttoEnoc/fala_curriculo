@@ -110,7 +110,11 @@ const REGRAS = [
   "Corrija a ortografia e escreva em português do Brasil profissional, simples e direto, preservando o significado.",
   "Se um campo estiver vazio, devolva texto vazio. Nunca preencha com exemplo ou suposição.",
   "Se a pessoa nunca trabalhou, devolva experiencia como lista vazia e escreva um resumo focado no objetivo e nos estudos.",
-  "Devolva uma entrada em experiencia para cada trabalho recebido, na mesma ordem."
+  "Devolva uma entrada em experiencia para cada trabalho recebido, na mesma ordem.",
+  "Em cargo, escreva o nome da função com iniciais maiúsculas (exemplo: Ajudante de Pedreiro).",
+  "Em atividades, devolva de 2 a 4 itens curtos, cada um começando com um substantivo (exemplo: Transporte de materiais na obra). Use só atividades que a pessoa disse.",
+  "Em maisSobre, reescreva o comentário extra em uma frase na terceira pessoa, ou devolva texto vazio.",
+  "O resumo tem no máximo duas frases, na terceira pessoa, sem números que não estejam nos dados."
 ].join("\n");
 
 // Formato da resposta (saídas estruturadas).
@@ -130,7 +134,7 @@ const ESQUEMA = {
         required: ["cargo", "atividades", "maisSobre"],
         properties: {
           cargo: { type: "string" },
-          atividades: { type: "string" },
+          atividades: { type: "array", items: { type: "string" } },
           maisSobre: { type: "string" }
         }
       }
@@ -227,6 +231,9 @@ O esquema garante o **formato**, não a **verdade**. O `ia/validar.js` deve:
 2. Manter do currículo básico, sem passar pela IA: empresa, período, formação,
    cursos, idiomas, CNH, disponibilidade, nome e contatos.
 3. Usar da IA apenas `titulo`, `resumo`, `cargo`, `atividades` e `maisSobre`.
+   As `atividades` vêm como lista de itens curtos, que o PDF mostra com
+   marcadores (ver `modelo-curriculo-pdf.md`). Se a lista vier vazia, usar a
+   frase original da pessoa.
 4. Se o usuário deixou `maisSobre` vazio, manter vazio mesmo que a IA escreva
    algo.
 5. Se o usuário nunca trabalhou e a IA devolver experiências, descartar.
