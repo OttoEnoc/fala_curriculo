@@ -17,14 +17,13 @@
 <link rel="stylesheet" href="./estilos.css">
 </head>
 <body>
-
 <div class="app">
   <header class="barra">
     <span class="marca">
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><path d="M4 10v4M8 6v12M12 3v18M16 6v12M20 10v4"/></svg>
       Fala Currículo
     </span>
-    <button class="icon-btn" id="btnModo" aria-label="Trocar o jeito de usar" title="Trocar o jeito de usar"><svg id="icoModo" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="8" r="4"/><path d="M4 21a8 8 0 0 1 16 0"/></svg></button>
+    <button class="icon-btn" id="btnLetra" aria-pressed="false" aria-label="Deixar a letra maior" title="Deixar a letra maior"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 19 8 6l5 13M4.8 15h6.4"/><path d="M17 9v8M13 13h8"/></svg></button>
     <button class="icon-btn" id="btnSom" aria-pressed="true" aria-label="Ligar ou desligar a voz do app"><svg id="icoSom" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M11 5 6 9H3v6h3l5 4V5z"/><path d="M15.5 8.5a5 5 0 0 1 0 7"/><path d="M18.5 5.5a9 9 0 0 1 0 13"/></svg></button>
     <button class="icon-btn" id="btnPainel" aria-label="Ver todas as telas"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><rect x="3" y="3" width="7" height="7" rx="2"/><rect x="14" y="3" width="7" height="7" rx="2"/><rect x="3" y="14" width="7" height="7" rx="2"/><rect x="14" y="14" width="7" height="7" rx="2"/></svg></button>
   </header>
@@ -49,7 +48,31 @@
         <rect x="70" y="118" width="24" height="8" rx="4" fill="var(--azul-suave)"/>
       </svg>
       <div class="cresce"></div>
-      <div class="acoes"><button class="btn btn--azul largura-total" data-ir="t-microfone"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.3" stroke-linecap="round"><rect x="9" y="2" width="6" height="12" rx="3"/><path d="M5 11a7 7 0 0 0 14 0M12 18v4"/></svg>Começar</button></div>
+      <div class="acoes"><button class="btn btn--azul largura-total" data-ir="t-privacidade"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.3" stroke-linecap="round"><rect x="9" y="2" width="6" height="12" rx="3"/><path d="M5 11a7 7 0 0 0 14 0M12 18v4"/></svg>Começar</button></div>
+    </section>
+
+    <section class="tela" id="t-retomar" data-titulo="Continuar de onde parou">
+      <span class="selo verde"><span class="onda"><i></i><i></i><i></i><i></i><i></i></span> Que bom te ver de novo</span>
+      <h1>Quer continuar de onde parou?</h1>
+      <p class="sub" id="subRetomar">As suas respostas de antes estão guardadas neste aparelho.</p>
+      <div class="cresce"></div>
+      <div class="acoes">
+        <button class="btn btn--verde largura-total" id="btnContinuar"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"><path d="m4.5 12.5 5 5 10-11"/></svg>Continuar de onde parei</button>
+        <button class="btn btn--claro largura-total" id="btnComecarDeNovo">Começar um currículo novo</button>
+      </div>
+    </section>
+
+    <section class="tela" id="t-privacidade" data-titulo="Suas informações">
+      <span class="selo"><span class="onda"><i></i><i></i><i></i><i></i><i></i></span> Antes de começar</span>
+      <h1>Como cuidamos das suas informações</h1>
+      <ul class="privacidade">
+        <li><span class="priv-ico" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="2" width="6" height="12" rx="3"/><path d="M5 11a7 7 0 0 0 14 0M12 18v4"/></svg></span><span>A sua voz vira texto, e o app fala com você, usando a <b>OpenAI</b>. A voz que você ouve é gerada por inteligência artificial, não é uma pessoa.</span></li>
+        <li><span class="priv-ico" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 20h4l10-10-4-4L4 16z"/></svg></span><span>Para deixar o texto profissional, as respostas vão para a IA <b>Claude</b>, da Anthropic. O seu telefone e o seu e-mail não vão.</span></li>
+        <li><span class="priv-ico" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><rect x="4" y="10" width="16" height="10" rx="2"/><path d="M8 10V7a4 4 0 0 1 8 0v3"/></svg></span><span>O nosso servidor não grava as suas respostas nem a sua voz. Pelas regras dessas empresas, os dados não são usados para treinar IA.</span></li>
+        <li><span class="priv-ico" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><rect x="7" y="2" width="10" height="20" rx="2"/><path d="M11 18h2"/></svg></span><span>As suas respostas ficam guardadas só neste aparelho, para você continuar depois se parar no meio. Você pode apagar quando quiser.</span></li>
+      </ul>
+      <div class="cresce"></div>
+      <div class="acoes"><button class="btn btn--azul largura-total" data-ir="t-microfone"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"><path d="m4.5 12.5 5 5 10-11"/></svg>Entendi, vamos lá</button></div>
     </section>
 
     <section class="tela" id="t-microfone" data-titulo="Permissão do microfone">
@@ -76,43 +99,21 @@
       </div>
     </section>
 
-    <section class="tela" id="t-como" data-titulo="Como funciona">
-      <span class="selo"><span class="onda"><i></i><i></i><i></i><i></i><i></i></span> Ouça como funciona</span>
-      <h1>Como funciona?</h1>
-      <div class="lista">
-        <div class="cartao cartao--estatico"><span class="num">1</span><span><b>Você fala</b><small>Me conte sobre os seus trabalhos. Se preferir, pode escrever.</small></span></div>
-        <div class="cartao cartao--estatico"><span class="num">2</span><span><b>O app repete</b><small>Eu leio de volta para você ver se ficou certo.</small></span></div>
-        <div class="cartao cartao--estatico"><span class="num">3</span><span><b>Currículo pronto</b><small>Seu currículo fica salvo em PDF para enviar ou imprimir.</small></span></div>
-      </div>
-      <div class="cresce"></div>
-      <div class="acoes"><button class="btn btn--azul largura-total" data-ir="t-modo">Começar</button></div>
-    </section>
-
-    <section class="tela" id="t-modo" data-titulo="Sozinho ou com ajuda">
-      <span class="selo"><span class="onda"><i></i><i></i><i></i><i></i><i></i></span> Escolha como prefere</span>
-      <h1>Como prefere usar?</h1>
-      <p class="sub">Isso muda o jeito que o app se comporta. Dá para trocar depois, no botão de pessoa lá em cima.</p>
-      <div class="lista">
-        <button class="cartao" data-modo="sozinho"><span class="num"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><circle cx="12" cy="8" r="4"/><path d="M4 21a8 8 0 0 1 16 0"/></svg></span><span><b>Vou fazer sozinho</b><small>O app fala tudo devagar e o botão de falar fica em primeiro lugar. Se você demorar, eu repito a pergunta sozinho.</small></span></button>
-        <button class="cartao" data-modo="ajuda"><span class="num"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><circle cx="9" cy="8" r="3.4"/><circle cx="17" cy="9" r="2.8"/><path d="M3 20a6 6 0 0 1 12 0M15.5 20a5 5 0 0 1 5.5-4.8"/></svg></span><span><b>Alguém vai me ajudar</b><small>O botão de escrever fica em primeiro lugar, as letras ficam maiores e cada pergunta mostra um exemplo na tela. A voz fala menos.</small></span></button>
-      </div>
-      <div class="cresce"></div>
-      <div class="acoes"><button class="btn btn--fantasma" data-voltar="t-como">Voltar</button></div>
-    </section>
-
-    <section class="tela" id="t-pergunta" data-titulo="Pergunta">
+            <section class="tela" id="t-pergunta" data-titulo="Pergunta">
+      <button class="btn-voltar" id="btnVoltarPergunta" hidden><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M15 5l-7 7 7 7"/></svg>Voltar para a pergunta anterior</button>
       <span class="selo"><span class="onda"><i></i><i></i><i></i><i></i><i></i></span> <span id="seloPergunta">Falando com você</span></span>
       <div class="trilho"><span id="barraP"></span></div>
       <div class="passo-txt" id="passoP">Dados Pessoais</div>
       <h1 class="pergunta" id="txtPergunta">Qual é o seu nome completo?</h1>
       <p class="sub" id="ajudaPergunta">Fale o seu nome e o seu sobrenome.</p>
+      <div class="resposta-antes" id="respostaAntes" hidden><small>Você tinha respondido:</small><b></b><button class="btn btn--verde" id="btnManterResp"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"><path d="m4.5 12.5 5 5 10-11"/></svg>Está certo, seguir</button></div>
       <div class="exemplo" id="exemploPergunta" hidden><small>Por exemplo, alguém responderia assim:</small><b></b></div>
       <div class="lista" id="opcoesPergunta"></div>
       <div class="cresce"></div>
       <div class="acoes" id="acoesPergunta">
         <button class="btn btn--vermelho btn--mic largura-total" id="btnFalar"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.3" stroke-linecap="round"><rect x="9" y="2" width="6" height="12" rx="3"/><path d="M5 11a7 7 0 0 0 14 0M12 18v4"/></svg>Falar a resposta</button>
         <button class="btn btn--claro" id="btnEscrever"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.3" stroke-linecap="round" stroke-linejoin="round"><path d="M4 20h4l10-10-4-4L4 16z"/></svg>Escrever a resposta</button>
-        <button class="btn btn--fantasma" id="btnPularAqui" hidden>Não tenho, pular esta pergunta</button>
+        <button class="btn btn--fantasma" id="btnPularAqui" hidden>Pular esta pergunta</button>
         <button class="btn btn--fantasma" id="btnOuvirPergunta">Ouvir a pergunta de novo</button>
       </div>
     </section>
@@ -214,60 +215,12 @@
       </div>
     </section>
 
-    <section class="tela" id="t-progresso" data-titulo="Seu progresso">
-      <span class="selo verde"><span class="onda"><i></i><i></i><i></i><i></i><i></i></span> Ouça o seu progresso</span>
-      <h1>Seu progresso</h1>
-      <div class="trilho"><span id="barraProg"></span></div>
-      <div class="lista" id="listaSecoes"></div>
-      <div class="cresce"></div>
-      <div class="acoes"><button class="btn btn--azul largura-total" id="btnContinuar">Continuar</button></div>
-    </section>
-
-    <section class="tela" id="t-conferir" data-titulo="Vamos conferir">
-      <span class="selo"><span class="onda"><i></i><i></i><i></i><i></i><i></i></span> Vou ler o currículo para você</span>
-      <h1>Vamos conferir o seu currículo?</h1>
-      <p class="sub">Para a sua segurança, eu vou ler tudo em voz alta. Assim você ouve e vê se está correto antes de enviar para alguém.</p>
-      <svg class="ilustra" viewBox="0 0 280 160" role="img" aria-label="Mão segurando um documento">
-        <rect x="88" y="14" width="104" height="112" rx="10" fill="var(--papel)" stroke="var(--borda)" stroke-width="3"/>
-        <rect x="104" y="32" width="52" height="8" rx="4" fill="var(--azul)"/>
-        <rect x="104" y="50" width="72" height="6" rx="3" fill="var(--borda)"/>
-        <rect x="104" y="64" width="64" height="6" rx="3" fill="var(--borda)"/>
-        <rect x="104" y="78" width="70" height="6" rx="3" fill="var(--borda)"/>
-        <rect x="104" y="92" width="46" height="6" rx="3" fill="var(--borda)"/>
-        <path d="M74 150q-14-26 4-40t34 4" fill="var(--ambar)"/>
-        <path d="M212 56q10 14 0 28M228 44q18 26 0 52" stroke="var(--verde)" stroke-width="5" fill="none" stroke-linecap="round"/>
-      </svg>
-      <div class="cresce"></div>
-      <div class="acoes"><button class="btn btn--azul largura-total" id="btnLerCV"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.3" stroke-linecap="round"><path d="M11 5 6 9H3v6h3l5 4V5z"/><path d="M15.5 8.5a5 5 0 0 1 0 7"/></svg>Ouvir meu currículo</button></div>
-    </section>
-
-    <section class="tela" id="t-lendo" data-titulo="Lendo em voz alta">
-      <span class="selo"><span class="onda"><i></i><i></i><i></i><i></i><i></i></span> Lendo em voz alta</span>
-      <div class="trilho"><span id="barraLeitura"></span></div>
-      <div class="passo-txt" id="passoLeitura">Lendo parte 1 de 4</div>
-      <div class="lista" id="listaLeitura"></div>
-      <div class="cresce"></div>
-      <div class="acoes"><button class="btn btn--claro largura-total" id="btnPararLeitura">Parar a leitura</button></div>
-    </section>
-
-    <section class="tela" id="t-tudocerto" data-titulo="Está tudo certo?">
-      <span class="selo verde"><span class="onda"><i></i><i></i><i></i><i></i><i></i></span> Está tudo certo com as informações?</span>
-      <h1>Está tudo certo?</h1>
-      <p class="sub">Se algo estiver errado, dá para arrumar agora. Depois de enviar também dá, mas é melhor conferir aqui.</p>
-      <div class="cresce"></div>
-      <div class="acoes">
-        <button class="btn btn--claro largura-total" id="btnOuvirTudo">Ouvir tudo de novo</button>
-        <button class="btn btn--verde" id="btnSimCerto"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"><path d="m4.5 12.5 5 5 10-11"/></svg>Sim, está certo</button>
-        <button class="btn btn--vermelho" id="btnMudarAlgo">Quero mudar algo</button>
-      </div>
-    </section>
-
-    <section class="tela" id="t-corrigir" data-titulo="Corrigir uma parte">
+                    <section class="tela" id="t-corrigir" data-titulo="Corrigir uma parte">
       <span class="selo"><span class="onda"><i></i><i></i><i></i><i></i><i></i></span> Toque na parte que quer mudar</span>
       <h1>Quer corrigir alguma parte?</h1>
       <div class="lista" id="listaCorrigir"></div>
       <div class="cresce"></div>
-      <div class="acoes"><button class="btn btn--verde largura-total" data-ir="t-tudocerto">Está tudo certo</button></div>
+      <div class="acoes"><button class="btn btn--verde largura-total" data-ir="t-pronto">Voltar para o currículo</button></div>
     </section>
 
     <section class="tela" id="t-faltando" data-titulo="Faltam informações">
@@ -305,13 +258,35 @@
 
     <section class="tela" id="t-pronto" data-titulo="Currículo pronto">
       <div class="confete" id="confete" aria-hidden="true"></div>
-      <span class="selo verde"><span class="onda"><i></i><i></i><i></i><i></i><i></i></span> Seu currículo ficou pronto</span>
-      <h1>Currículo pronto!</h1>
+      <span class="selo verde"><span class="onda"><i></i><i></i><i></i><i></i><i></i></span> Confira o seu currículo</span>
+      <h1>Veja como ficou</h1>
+      <p class="sub" id="subPronto">Melhorei o texto das suas respostas. Ouça ou leia e veja se está tudo certo.</p>
       <div class="cv" id="previaCV"></div>
       <div class="cresce"></div>
       <div class="acoes">
         <button class="btn btn--claro" id="btnOuvirCV"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.3" stroke-linecap="round"><path d="M11 5 6 9H3v6h3l5 4V5z"/><path d="M15.5 8.5a5 5 0 0 1 0 7"/></svg>Ouvir o que está escrito</button>
-        <button class="btn btn--verde" data-ir="t-enviar"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.3" stroke-linecap="round" stroke-linejoin="round"><path d="M21 3 10 14M21 3l-7 18-4-7-7-4z"/></svg>Enviar meu currículo</button>
+        <button class="btn btn--claro" id="btnMudarAlgo"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.3" stroke-linecap="round" stroke-linejoin="round"><path d="M4 20h4l10-10-4-4L4 16z"/></svg>Quero mudar algo</button>
+        <button class="btn btn--verde largura-total" data-ir="t-enviar"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.3" stroke-linecap="round" stroke-linejoin="round"><path d="m4.5 12.5 5 5 10-11"/></svg>Está certo, quero o PDF</button>
+      </div>
+    </section>
+
+    <section class="tela" id="t-ajuste" data-titulo="Mudar o currículo">
+      <span class="selo ambar">Fale do seu jeito</span>
+      <h1>O que você quer mudar?</h1>
+      <p class="sub">Fale ou escreva o que quer mudar, do jeito que quiser. Por exemplo: “o nome completo da empresa é Ariete Indústria de Máquinas e Forjas”.</p>
+      <div class="previa-ajuste">
+        <div class="previa-ajuste__topo"><b>Seu currículo agora</b><button class="btn-link" id="btnAjusteOuvirCV">Ouvir o currículo</button></div>
+        <div class="previa-ajuste__corpo" id="previaAjuste" tabindex="0" aria-label="Seu currículo agora"><div class="cv"></div></div>
+      </div>
+      <label class="rotulo" for="campoAjuste">O que mudar</label>
+      <textarea class="campo" id="campoAjuste" placeholder="Escreva aqui, ou toque no botão vermelho e fale…"></textarea>
+      <div class="aviso" id="avisoAjuste" hidden><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.3" stroke-linecap="round"><circle cx="12" cy="12" r="9"/><path d="M12 8v5M12 16.5v.01"/></svg><span id="txtAvisoAjuste"></span></div>
+      <div class="cresce"></div>
+      <div class="acoes">
+        <button class="btn btn--vermelho btn--mic largura-total" id="btnAjusteFalar"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.3" stroke-linecap="round"><rect x="9" y="2" width="6" height="12" rx="3"/><path d="M5 11a7 7 0 0 0 14 0M12 18v4"/></svg>Falar o que quero mudar</button>
+        <button class="btn btn--verde largura-total" id="btnAjusteFazer" disabled><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"><path d="m4.5 12.5 5 5 10-11"/></svg>Fazer a mudança</button>
+        <button class="btn btn--fantasma" id="btnAjustePartes">Prefiro responder uma parte de novo</button>
+        <button class="btn btn--fantasma" data-ir="t-pronto">Voltar para o currículo</button>
       </div>
     </section>
 
@@ -324,6 +299,7 @@
         <button class="btn btn--claro largura-total" id="btnBaixar"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.3" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3v12m0 0 4.5-4.5M12 15l-4.5-4.5"/><path d="M4 18v2a1 1 0 0 0 1 1h14a1 1 0 0 0 1-1v-2"/></svg>Guardar no celular</button>
         <div class="aviso" id="avisoEnvio" hidden><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.3" stroke-linecap="round"><circle cx="12" cy="12" r="9"/><path d="M12 8v5M12 16.5v.01"/></svg><span id="txtAvisoEnvio"></span></div>
         <button class="btn btn--fantasma largura-total" id="btnRecomecar">Voltar ao início</button>
+        <button class="btn btn--fantasma largura-total" id="btnApagarTudo">Apagar as minhas respostas deste aparelho</button>
       </div>
       <div class="cresce"></div>
     </section>
@@ -354,7 +330,10 @@
     <button class="btn btn--claro" id="btnFecharPainel" style="margin-top:14px">Fechar</button>
   </div>
 </div>
+<script src="./municipios.js"></script>
 <script src="./roteiro.js"></script>
 <script src="./app.js"></script>
+<script src="./ia.js"></script>
+
 </body>
 </html>

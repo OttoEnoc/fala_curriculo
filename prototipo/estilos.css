@@ -1,3 +1,4 @@
+[hidden]{display:none !important}
 :root{
   --areia:#FBF3E4; --areia-fundo:#F3E8D2; --papel:#FFFFFF;
   --tinta:#17242B; --tinta-fraca:#54646E; --borda:#E3D6BE;
@@ -217,3 +218,26 @@ body.modo-ajuda .sub{font-size:clamp(18px,4.6vw,22px)}
   .tela{border:0;box-shadow:none;padding:0;min-height:0}
   .cv{border:0;padding:0}
 }
+/* tela de privacidade */
+.privacidade{list-style:none;margin:6px 0 0;padding:0;display:flex;flex-direction:column;gap:14px}
+.privacidade li{display:flex;gap:14px;align-items:flex-start;font-size:18px;line-height:1.45}
+.priv-ico{flex:none;width:42px;height:42px;border-radius:12px;background:var(--azul-suave);color:var(--azul);display:flex;align-items:center;justify-content:center}
+.priv-ico svg{width:22px;height:22px}
+
+/* voltar para a pergunta anterior */
+.btn-voltar{align-self:flex-start;display:inline-flex;align-items:center;gap:6px;background:none;border:0;padding:10px 12px 10px 4px;margin:-8px 0 8px -4px;
+  color:var(--azul);font:inherit;font-size:17px;font-weight:700;cursor:pointer;min-height:48px;border-radius:12px}
+.btn-voltar svg{width:22px;height:22px}
+.btn-voltar:focus-visible{outline:3px solid var(--azul);outline-offset:2px}
+.resposta-antes{border-left:4px solid var(--azul);background:var(--azul-suave);border-radius:12px;padding:12px 16px;margin:4px 0 8px;display:flex;flex-direction:column;gap:2px}
+.resposta-antes small{font-size:15px;color:var(--tinta-fraca)}
+.resposta-antes b{font-size:18px}
+.resposta-antes .btn{margin-top:10px;align-self:stretch}
+
+/* currículo visível enquanto a pessoa diz o que quer mudar */
+.previa-ajuste{border:2px solid var(--borda, rgba(127,127,127,.35));border-radius:16px;margin:4px 0 16px;overflow:hidden}
+.previa-ajuste__topo{display:flex;justify-content:space-between;align-items:center;gap:12px;padding:10px 14px;font-size:16px;border-bottom:1px solid var(--borda, rgba(127,127,127,.35))}
+.previa-ajuste__corpo{max-height:42vh;overflow:auto;padding:4px 14px 12px;-webkit-overflow-scrolling:touch}
+.previa-ajuste__corpo .cv{font-size:15px;box-shadow:none;border:0;padding:8px 0;margin:0;background:transparent}
+.btn-link{background:none;border:0;color:var(--azul);font:inherit;font-weight:700;text-decoration:underline;cursor:pointer;padding:8px 0;min-height:44px}
+@media (min-width:900px){ .previa-ajuste__corpo{max-height:46vh} }

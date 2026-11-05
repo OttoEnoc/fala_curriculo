@@ -17,14 +17,15 @@ var ROTEIRO = [
     id:"pessoais", secao:"pessoais", lista:false,
     perguntas:[
       {id:"nome", obrig:true, tipo:"nome", texto:"Qual é o seu nome completo?", ajuda:"Fale o seu nome e o seu sobrenome.", exemplo:"José da Silva"},
-      {id:"cidade", obrig:true, tipo:"texto", texto:"Em qual cidade você mora?", ajuda:"Fale só o nome da cidade.", exemplo:"São Paulo"},
-      {id:"estado", obrig:true, tipo:"estado", texto:"E essa cidade fica em qual estado?", ajuda:"Por exemplo: São Paulo, Bahia, Ceará.", exemplo:"São Paulo"},
+      {id:"cidade", obrig:true, tipo:"cidade", texto:"Em qual cidade e estado você mora?", ajuda:"Fale a cidade e o estado. Por exemplo: Guarulhos, São Paulo.", exemplo:"Guarulhos, São Paulo"},
+      {id:"estado", obrig:true, tipo:"estado", texto:"E essa cidade fica em qual estado?", ajuda:"Por exemplo: São Paulo, Bahia, Ceará.", exemplo:"São Paulo",
+       mostrarSe:function(it){ return !it.estado; }},
       {id:"objetivo", obrig:true, tipo:"texto", texto:"Que trabalho você está procurando agora?", ajuda:"Fale o nome da vaga que você quer. Por exemplo: ajudante de pedreiro.", exemplo:"Ajudante de pedreiro"},
       {id:"cnh", obrig:false, tipo:"opcao", texto:"Você tem carteira de motorista?", ajuda:"Se não tiver, não tem problema nenhum. Não vai aparecer no currículo.",
        opcoes:["Não tenho","Sim, de moto","Sim, de carro","Sim, de moto e de carro"]},
       {id:"modalidade", obrig:false, tipo:"opcao", texto:"Você pode trabalhar fora de casa?", ajuda:"Toque numa das opções.",
        opcoes:["Sim, no local de trabalho","Só de casa","Dos dois jeitos"]},
-      {id:"idade", obrig:false, tipo:"idade", texto:"Quantos anos você tem?", ajuda:"Pode falar só o número.", exemplo:"42"}
+      {id:"idade", obrig:false, tipo:"idade", pular:"Prefiro não informar", texto:"Quer colocar a sua idade no currículo?", ajuda:"Não é obrigatório. Se quiser, fale quantos anos você tem. Se não quiser, toque em pular.", exemplo:"42"}
     ]
   },
   {
@@ -36,7 +37,7 @@ var ROTEIRO = [
       {id:"empresa", obrig:true, tipo:"texto", texto:"Onde você fazia esse trabalho?", ajuda:"Pode ser o nome da empresa, da obra, da loja, ou a casa das pessoas. Se era por conta própria, toque no botão verde.", exemplo:"Construtora Silva", atalhos:["Trabalhei por conta própria"]},
       {id:"periodo", obrig:true, tipo:"periodo", texto:"Quanto tempo você ficou nesse trabalho?", ajuda:"Fale com número e a palavra mês ou ano. Por exemplo: dois anos.", exemplo:"2 anos"},
       {id:"atividades", obrig:true, tipo:"longo", texto:"O que você fazia todo dia nesse trabalho?", ajuda:"Conte duas ou três coisas que você fazia.", exemplo:"Eu carregava material, fazia massa e ajudava no reboco"},
-      {id:"maisSobre", obrig:false, tipo:"texto", texto:"Quer contar mais alguma coisa sobre esse trabalho?", ajuda:"Pode falar o que quiser: como você aprendeu, com quem você trabalhava, o que você fazia de melhor. Se não quiser, pode pular.", exemplo:"Aprendi na obra com meu tio e depois passei a ensinar os mais novos"}
+      {id:"maisSobre", obrig:false, tipo:"texto", pular:"Não quero contar mais nada", texto:"Quer contar mais alguma coisa sobre esse trabalho?", ajuda:"Pode falar o que quiser: como você aprendeu, com quem você trabalhava, o que você fazia de melhor. Se não quiser, pode pular.", exemplo:"Aprendi na obra com meu tio e depois passei a ensinar os mais novos"}
     ],
     mais:{titulo:"Você trabalhou em outro lugar também?", sub:"Contar mais de um trabalho deixa o currículo mais forte.",
       sim:"Sim, trabalhei em outro", nao:"Não, só esse"},
@@ -47,7 +48,10 @@ var ROTEIRO = [
     perguntas:[
       {id:"escolaridade", obrig:true, tipo:"opcao", texto:"Até onde você estudou?", ajuda:"Toque na opção mais parecida com a sua.",
        opcoes:["Não estudei","Ensino fundamental","Ensino médio","Curso técnico","Faculdade"]},
-      {id:"instituicao", tipo:"texto", texto:"Qual era o nome da escola ou da faculdade?", ajuda:"Se não lembrar o nome, pode pular esta pergunta.", exemplo:"Escola Estadual Jardim União",
+      {id:"curso", tipo:"texto", texto:"Qual é o nome do curso?", ajuda:"Fale o nome do curso. Por exemplo: Administração, Enfermagem, Técnico em Logística.", exemplo:"Administração",
+       mostrarSe:function(it){ return SUPERIOR.indexOf(it.escolaridade) >= 0; },
+       obrigSe:function(it){ return SUPERIOR.indexOf(it.escolaridade) >= 0; }},
+      {id:"instituicao", tipo:"texto", pular:"Não lembro o nome, pular", texto:"Qual era o nome da escola ou da faculdade?", ajuda:"Se não lembrar o nome, pode pular esta pergunta.", exemplo:"Escola Estadual Jardim União",
        mostrarSe:function(it){ return it.escolaridade && it.escolaridade !== "Não estudei"; },
        obrigSe:function(it){ return SUPERIOR.indexOf(it.escolaridade) >= 0; }},
       {id:"situacao", obrig:true, tipo:"opcao", texto:"Você terminou os estudos nessa escola?", ajuda:"Toque numa das opções.",
@@ -57,7 +61,7 @@ var ROTEIRO = [
     maisSe:function(it){ return it.escolaridade && it.escolaridade !== "Não estudei"; },
     mais:{titulo:"Você estudou em outro lugar também?", sub:"Por exemplo: terminou o fundamental numa escola e o médio em outra.",
       sim:"Sim, estudei em outro", nao:"Não, só esse"},
-    resumo:function(it){ return [it.escolaridade, it.instituicao].filter(Boolean).join(" — "); }
+    resumo:function(it){ return [it.escolaridade, it.curso, it.instituicao].filter(Boolean).join(" — "); }
   },
   {
     id:"cursos", secao:"estudo", lista:true,
@@ -73,14 +77,14 @@ var ROTEIRO = [
   {
     id:"idiomas", secao:"estudo", lista:false,
     perguntas:[
-      {id:"idiomas", obrig:false, tipo:"texto", texto:"Você fala alguma outra língua além do português?", ajuda:"Se falar só português, pode pular esta pergunta.", exemplo:"Espanhol básico"}
+      {id:"idiomas", obrig:false, tipo:"texto", pular:"Falo só português", texto:"Você fala alguma outra língua além do português?", ajuda:"Se falar só português, pode pular esta pergunta.", exemplo:"Espanhol básico"}
     ]
   },
   {
     id:"contato", secao:"contato", lista:false,
     perguntas:[
       {id:"telefone", obrig:true, tipo:"telefone", texto:"Qual é o seu telefone com WhatsApp?", ajuda:"Fale o DDD e depois o número, bem devagar.", exemplo:"(11) 99828-0299"},
-      {id:"email", obrig:false, tipo:"email", escrever:true, texto:"Qual é o seu e-mail?", ajuda:"É bem mais fácil escrever o e-mail do que falar.", exemplo:"jose.silva@gmail.com"},
+      {id:"email", obrig:false, tipo:"email", pular:"Não tenho e-mail, pular", texto:"Qual é o seu e-mail?", ajuda:"Fale devagar, assim: jose ponto silva arroba gmail ponto com. Se preferir, toque em escrever.", exemplo:"jose.silva@gmail.com"},
       {id:"temLinkedin", obrig:false, tipo:"opcao", texto:"Você tem LinkedIn?", ajuda:"É um site onde as empresas procuram gente para trabalhar.",
        opcoes:["Não tenho","Tenho LinkedIn"]},
       {id:"linkedin", tipo:"texto", escrever:true, texto:"Qual é o seu LinkedIn?", ajuda:"Escreva o endereço do seu perfil.", exemplo:"linkedin.com/in/josedasilva",

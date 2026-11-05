@@ -1,0 +1,4 @@
+# Só para "npm run cf:local" (testar a versão Cloudflare no computador).
+# Copie como .dev.vars. Não vai para o Git. Na nuvem, use "wrangler secret put".
+IA_API_KEY=
+OPENAI_API_KEY=

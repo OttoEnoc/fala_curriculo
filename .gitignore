@@ -79,3 +79,9 @@ $RECYCLE.BIN/
 .vscode/
 .idea/
 *.swp
+# Cloudflare (wrangler)
+.dev.vars
+.dev.vars.*
+!.dev.vars.exemplo
+.wrangler/
+.cache-fala/

@@ -26,11 +26,16 @@ O frontend está na pasta `prototipo`:
 
 O protótipo usa JavaScript sem framework.
 
-O reconhecimento de fala e a leitura em voz alta usam recursos do
-navegador. O PDF utiliza jsPDF.
+A voz é gravada com MediaRecorder e transcrita no servidor pela OpenAI
+(`gpt-transcribe`, rota `/api/transcrever`). A leitura em voz alta usa o
+SpeechSynthesis do navegador. O PDF utiliza jsPDF.
 
-O protótipo consegue montar o currículo diretamente com as respostas.
-Não presumir que a integração com uma IA externa esteja implementada.
+O texto do currículo é melhorado pelo Claude (`claude-haiku-5-5`) no
+servidor (rota `/api/curriculo`, pasta `servidor/ia`). Sem chave ou com
+falha, o app monta o currículo com as respostas e avisa na tela.
+
+O servidor roda com Express no computador (`servidor/server.js`) e como
+Cloudflare Worker na nuvem (`servidor/worker.js`); a lógica é a mesma.
 
 A persistência das respostas no aparelho ainda é uma etapa planejada.
 Não confundir dados mantidos em memória com dados salvos permanentemente.

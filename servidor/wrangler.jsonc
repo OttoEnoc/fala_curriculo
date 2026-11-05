@@ -1,0 +1,26 @@
+// Configuração do Cloudflare Workers.
+// Publicar:  npm run cf:publicar   (depois de "npx wrangler login")
+// Chaves:    npx wrangler secret put IA_API_KEY
+//            npx wrangler secret put OPENAI_API_KEY
+{
+  "$schema": "./node_modules/wrangler/config-schema.json",
+  "name": "fala-curriculo",
+  "main": "worker.js",
+  "compatibility_date": "2026-10-01",
+  "compatibility_flags": ["nodejs_compat"],
+  "assets": {
+    "directory": "../prototipo",
+    "binding": "ASSETS",
+    "run_worker_first": ["/api/*"]
+  },
+  "vars": {
+    "IA_MODELO": "claude-haiku-5-5",
+    "TRANSCRICAO_MODELO": "gpt-transcribe",
+    "LIMITE_CURRICULOS_POR_HORA": "5",
+    "LIMITE_AUDIOS_POR_HORA": "120",
+    "LIMITE_FALAS_POR_HORA": "400",
+    "FALA_MODELO": "gpt-4o-mini-tts",
+    "FALA_VOZ": "marin"
+  },
+  "observability": { "enabled": true }
+}
