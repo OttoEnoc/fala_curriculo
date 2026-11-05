@@ -41,32 +41,21 @@ Usamos os nomes definidos na planilha. Exemplos:
 - Usar dados fictícios nos testes.
 - Evitar alterações sem relação com a tarefa da branch.
 
-## Executar o backend localmente
+## Executar localmente
 
-Pré-requisito: Node.js LTS instalado.
-
-No terminal, a partir da raiz do projeto:
+Pré-requisito: Node.js 20 ou mais recente.
 
 ```bash
 cd servidor
 npm install
+copy .env.exemplo .env      (Mac/Linux: cp .env.exemplo .env)
+# colar as chaves no .env
 npm start
 ```
 
+Abrir <http://localhost:3002>. O mesmo servidor entrega o app e as rotas
+`/api/saude`, `/api/curriculo` (Claude) e `/api/transcrever` (OpenAI).
+Passo a passo completo, testes e publicação no Cloudflare: `COMO-TESTAR.md`.
+
 No Windows, se o PowerShell bloquear a execução de `npm`,
 utilizar `npm.cmd` no lugar de `npm`.
-
-Com o servidor em execução, acessar:
-
-http://localhost:3001/api/saude
-
-Resposta esperada:
-
-```json
-{"ok":true}
-```
-
-Para encerrar o servidor, pressionar Ctrl + C no terminal.
-
-O frontend continua sendo executado pela extensão de prévia do VS Code.
-A integração entre frontend, backend e IA será desenvolvida no bloco 2.

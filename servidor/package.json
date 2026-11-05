@@ -1,18 +1,24 @@
 {
-  "name": "servidor",
-  "version": "1.0.0",
-  "description": "",
+  "name": "fala-curriculo-servidor",
+  "version": "2.0.0",
+  "private": true,
+  "description": "Servidor do Fala Currículo: entrega o app e chama Claude (texto) e OpenAI (voz).",
+  "type": "module",
   "main": "server.js",
+  "engines": { "node": ">=20" },
   "scripts": {
-    "test": "echo \"Error: no test specified\" && exit 1",
-    "start": "node server.js"
+    "start": "node server.js",
+    "test": "node --test testes/rotas.test.js",
+    "avaliar": "node avaliar.mjs",
+    "cf:local": "wrangler dev",
+    "cf:publicar": "wrangler deploy"
   },
-  "keywords": [],
-  "author": "",
-  "license": "ISC",
-  "type": "commonjs",
   "dependencies": {
+    "@anthropic-ai/sdk": "^1.4.0",
     "dotenv": "^18.0.6",
     "express": "^5.2.1"
+  },
+  "devDependencies": {
+    "wrangler": "^4.157.0"
   }
 }

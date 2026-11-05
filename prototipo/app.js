@@ -10,7 +10,7 @@ var S = {
   tela:"t-inicio",
   pos:{g:0, inst:0, q:-1},
   dados:{}, portas:{}, visitados:{},
-  rascunho:"", ultimaChave:null, repeticoes:0, som:true, modo:"sozinho", micOk:null,
+  rascunho:"", ultimaChave:null, repeticoes:0, som:true, modo:"sozinho", letraGrande:false, anuncio:"", micOk:null,
   editandoSecao:null, conferindoFaltas:false,
   faltouEscrever:false, cv:null
 };
@@ -26,7 +26,8 @@ function zerar(){
   ROTEIRO.forEach(function(g){ S.dados[g.id] = [{}]; });
   S.pos = {g:0, inst:0, q:-1};
   S.editandoSecao = null; S.conferindoFaltas = false; S.cv = null;
-  S.rascunho = ""; S.ultimaChave = null;
+  S.rascunho = ""; S.ultimaChave = null; S.demo = false;
+  S.historico = []; S.voltando = false;
 }
 zerar();
 
@@ -55,28 +56,180 @@ document.addEventListener("click", function(e){
 /* ============================================================
    4. O APP FALA
    ============================================================ */
+/*
+  A voz do app vem do servidor (/api/falar, voz neural da OpenAI), que soa
+  natural em qualquer navegador. Se o servidor não responder, usa a voz do
+  próprio navegador como reserva, escolhendo a melhor voz em português.
+*/
 var vozPT = null;
+var BOAS_VOZES = /(luciana|francisca|thalita|google portugu|premium|enhanced|aprimorad|natural|neural)/i;
 function acharVoz(){
   if(!("speechSynthesis" in window)) return;
-  var vs = window.speechSynthesis.getVoices() || [];
-  vozPT = vs.filter(function(v){ return /pt[-_]BR/i.test(v.lang); })[0]
-       || vs.filter(function(v){ return /^pt/i.test(v.lang); })[0] || null;
+  var vs = (window.speechSynthesis.getVoices() || []).filter(function(v){ return /^pt/i.test(v.lang); });
+  var br = vs.filter(function(v){ return /pt[-_]BR/i.test(v.lang); });
+  vozPT = br.filter(function(v){ return BOAS_VOZES.test(v.name); })[0] || br[0] || vs[0] || null;
 }
 if("speechSynthesis" in window){ acharVoz(); window.speechSynthesis.onvoiceschanged = acharVoz; }
 
-function falar(texto, aoFim){
-  if(!("speechSynthesis" in window) || !S.som || !texto){ if(aoFim) setTimeout(aoFim, 200); return; }
+function falarNavegador(texto, aoFim){
+  if(!("speechSynthesis" in window)){ if(aoFim) setTimeout(aoFim, 200); return; }
   try{ window.speechSynthesis.cancel(); }catch(e){}
   var u = new SpeechSynthesisUtterance(String(texto));
   u.lang = "pt-BR";
   if(vozPT) u.voice = vozPT;
-  u.rate = S.modo === "ajuda" ? 0.96 : 0.85;
+  u.rate = 0.95;
   u.onstart = function(){ document.body.classList.add("falando"); };
-  u.onend = function(){ document.body.classList.remove("falando"); if(aoFim) aoFim(); };
-  u.onerror = function(){ document.body.classList.remove("falando"); if(aoFim) aoFim(); };
+  u.onend = function(){ if(aoFim) aoFim(); };
+  u.onerror = function(){ if(aoFim) aoFim(); };
   window.speechSynthesis.speak(u);
 }
-function calar(){ try{ window.speechSynthesis.cancel(); }catch(e){} document.body.classList.remove("falando"); }
+
+var audioFala = new Audio();
+audioFala.preload = "auto";
+var vozServidor = true, falhasVoz = 0, falaId = 0, audioLiberado = false;
+// 0,1 s de silêncio em WAV, montado aqui mesmo (serve só para liberar o áudio).
+var SILENCIO = (function(){
+  try{
+    var n = 800, buf = new ArrayBuffer(44 + n * 2), d = new DataView(buf);
+    function s(o, t){ for(var k = 0; k < t.length; k++) d.setUint8(o + k, t.charCodeAt(k)); }
+    s(0, "RIFF"); d.setUint32(4, 36 + n * 2, true); s(8, "WAVEfmt "); d.setUint32(16, 16, true);
+    d.setUint16(20, 1, true); d.setUint16(22, 1, true); d.setUint32(24, 8000, true); d.setUint32(28, 16000, true);
+    d.setUint16(32, 2, true); d.setUint16(34, 16, true); s(36, "data"); d.setUint32(40, n * 2, true);
+    return URL.createObjectURL(new Blob([buf], {type:"audio/wav"}));
+  }catch(e){ return ""; }
+})();
+// O Safari só deixa tocar som depois de um toque na tela: o primeiro toque "libera" o áudio.
+document.addEventListener("pointerdown", function(){
+  if(audioLiberado) return;
+  audioLiberado = true;
+  if(SILENCIO && (!audioFala.src || audioFala.paused)){
+    audioFala.src = SILENCIO;
+    var pr = audioFala.play(); if(pr && pr.catch) pr.catch(function(){});
+  }
+}, {capture:true});
+
+/* Frase longa vira pedaços (uma ou duas frases cada): o primeiro pedaço
+   fica pronto rápido e começa a tocar enquanto os outros são gerados. */
+function pedacosDe(texto){
+  var t = String(texto || "").replace(/\s+/g, " ").trim();
+  if(!t) return [];
+  var frases = t.match(/[^.!?]+[.!?]*\s*/g) || [t], saida = [], atual = "";
+  frases.forEach(function(f){
+    f = f.trim(); if(!f) return;
+    if(!atual) atual = f;
+    else if(atual.length < 30 || (atual + " " + f).length <= 160) atual += " " + f;
+    else { saida.push(atual); atual = f; }
+  });
+  if(atual) saida.push(atual);
+  // pedaço gigante (lista sem pontos): corta nas vírgulas
+  return saida.reduce(function(lista, p){
+    while(p.length > 400){ var c = p.lastIndexOf(",", 400); if(c < 100) c = 400; lista.push(p.slice(0, c + 1).trim()); p = p.slice(c + 1).trim(); }
+    if(p) lista.push(p);
+    return lista;
+  }, []);
+}
+
+var vozCache = {};          // pedaço -> Promise de endereço do áudio (blob)
+var filaVoz = [], buscandoVoz = 0;
+// privado = texto com respostas da pessoa (nome, telefone...): o servidor
+// não guarda em cache, e aqui também não fica guardado depois de tocar.
+function pegarAudio(pedaco, privado){
+  if(!privado && vozCache[pedaco]) return vozCache[pedaco];
+  var pr = new Promise(function(ok, falha){
+    filaVoz.push({pedaco:pedaco, privado:!!privado, ok:ok, falha:falha});
+    andarFilaVoz();
+  });
+  if(!privado){
+    vozCache[pedaco] = pr;
+    pr.catch(function(){ delete vozCache[pedaco]; });
+  }
+  return pr;
+}
+function andarFilaVoz(){
+  while(buscandoVoz < 3 && filaVoz.length){
+    (function(item){
+      buscandoVoz++;
+      fetch("/api/falar?t=" + encodeURIComponent(item.pedaco) + (item.privado ? "&privado=1" : ""),
+            item.privado ? {cache:"no-store"} : undefined).then(function(r){
+        if(!r.ok) throw new Error("voz " + r.status);
+        return r.blob();
+      }).then(function(b){
+        if(!b.size) throw new Error("voz vazia");
+        item.ok(URL.createObjectURL(b));
+      }).catch(item.falha).then(function(){ buscandoVoz--; andarFilaVoz(); });
+    })(filaVoz.shift());
+  }
+}
+// Deixa prontas, em segundo plano, as frases que o app vai falar.
+function preaquecerVoz(frases){
+  if(!vozServidor) return;
+  frases.forEach(function(f){ pedacosDe(f).forEach(function(p){ pegarAudio(p).catch(function(){}); }); });
+}
+
+function tocarPedaco(url, meu){
+  return new Promise(function(ok, falha){
+    if(meu !== falaId) return ok();
+    audioFala.onended = function(){ ok(); };
+    audioFala.onerror = function(){ falha(new Error("erro ao tocar")); };
+    audioFala.onplaying = function(){ if(meu === falaId) document.body.classList.add("falando"); };
+    audioFala.src = url;
+    var pr = audioFala.play();
+    if(pr && pr.catch) pr.catch(function(err){
+      if(err && err.name === "AbortError") return ok();
+      falha(err);
+    });
+  });
+}
+
+// texto pode ser uma frase ou uma lista de frases, faladas em sequência.
+// Frase com dados da pessoa vai como {t:"...", privado:true}.
+function privado(t){ return {t:t, privado:true}; }
+function falar(texto, aoFim){
+  var lista = (Array.isArray(texto) ? texto : [texto]).map(function(x){
+    return (x && typeof x === "object") ? x : {t:x, privado:false};
+  }).filter(function(x){ return x.t; });
+  if(!S.som || !lista.length){ if(aoFim) setTimeout(aoFim, 200); return; }
+  calar();
+  var meu = ++falaId, terminou = false;
+  function fim(){
+    if(terminou || meu !== falaId) return;
+    terminou = true;
+    document.body.classList.remove("falando");
+    if(aoFim) aoFim();
+  }
+  var pedacos = [], privados = [];
+  lista.forEach(function(x){ pedacosDe(x.t).forEach(function(p){ pedacos.push(p); privados.push(x.privado); }); });
+  if(!vozServidor){ falarNavegador(pedacos.join(" "), fim); return; }
+
+  var promessas = pedacos.map(function(p, k){ return pegarAudio(p, privados[k]); }); // pede todos de uma vez
+  var k = 0;
+  function proximo(){
+    if(meu !== falaId) return;
+    if(k >= pedacos.length){ fim(); return; }
+    var atual = k++;
+    promessas[atual].then(function(url){
+      return tocarPedaco(url, meu).then(function(){
+        if(privados[atual]) try{ URL.revokeObjectURL(url); }catch(e){}
+      });
+    }).then(function(){
+      falhasVoz = 0;
+      proximo();
+    }).catch(function(err){
+      if(meu !== falaId) return;
+      if(err && err.name === "NotAllowedError"){ fim(); return; } // ainda sem toque na tela
+      falhasVoz++;
+      if(falhasVoz >= 2) vozServidor = false; // servidor sem voz: não insiste
+      falarNavegador(pedacos.slice(atual).join(" "), fim);
+    });
+  }
+  proximo();
+}
+function calar(){
+  falaId++;
+  try{ audioFala.pause(); }catch(e){}
+  try{ window.speechSynthesis.cancel(); }catch(e){}
+  document.body.classList.remove("falando");
+}
 
 $("#btnSom").addEventListener("click", function(){
   S.som = !S.som;
@@ -87,84 +240,194 @@ $("#btnSom").addEventListener("click", function(){
   if(!S.som) calar();
 });
 
+// Todas as frases fixas: perguntas, avisos de seção e telas.
+function frasesDoApp(){
+  var lista = [
+    "Preciso ouvir a sua voz para te ajudar. Como eu escrevo o que você fala, preciso da sua permissão para usar o microfone do aparelho.",
+    "Está certo? Eu entendi assim:", "Vou repetir.",
+    "Preparando o seu currículo. Só um momento.",
+    "Seu currículo está pronto. Veja se está tudo certo. Se quiser, aperte o botão para ouvir.",
+    "Não consegui entender. Vamos tentar mais uma vez? Fale um pouco mais devagar e perto do aparelho.",
+    "O que você quer mudar no currículo? Toque no botão vermelho e fale do seu jeito, ou escreva.",
+    "Como você quer receber o seu currículo?",
+    "Antes de começar, veja como cuidamos das suas informações. Esta voz que você está ouvindo é gerada por inteligência artificial. A sua voz e as respostas passam por serviços de inteligência artificial só para fazer o currículo. O seu telefone e o seu e-mail não vão para a IA. As respostas ficam guardadas só neste aparelho. Quando estiver pronto, aperte o botão azul.",
+    "Veja se ficou certo."
+  ];
+  SECOES.forEach(function(s){ lista.push("Muito bem! Agora vamos para " + s.nome + "."); });
+  ROTEIRO.forEach(function(g){
+    if(g.porta) lista.push(frasePergunta(g.porta));
+    g.perguntas.forEach(function(p){ lista.push(frasePergunta(p)); });
+    if(g.mais) lista.push(g.mais.titulo);
+  });
+  return lista;
+}
+
 /* ============================================================
    5. O APP OUVE
    ============================================================ */
-var SR = window.SpeechRecognition || window.webkitSpeechRecognition;
-var rec = null, gravando = false, textoOuvido = "", encerrando = false;
-function temMic(){ return !!SR && S.micOk !== false; }
+/*
+  A voz é gravada com MediaRecorder (funciona no Chrome, Edge, Firefox,
+  Safari e Samsung Internet) e enviada ao servidor em /api/transcrever,
+  que usa a transcrição da OpenAI. O áudio não fica guardado em lugar nenhum.
+*/
+var gravador = null, fluxoMic = null, pedacos = [], gravando = false, descartar = false, finalizando = false;
+var inicioGravacao = 0, timerRelogio = null, timerLimite = null;
+var LIMITE_GRAVACAO = 90; // segundos
+var TIPOS_AUDIO = ["audio/webm;codecs=opus", "audio/webm", "audio/mp4", "audio/ogg;codecs=opus"];
 
-function iniciarGravacao(){
-  if(!SR){ ir("t-escrever"); return false; }
-  textoOuvido = ""; encerrando = false;
-  var el = $("#aoVivo"); if(el) el.textContent = "";
-  try{ if(rec){ rec.onend = null; rec.abort(); } }catch(e){}
-  try{ rec = new SR(); }catch(e){ ir("t-escrever"); return false; }
-
-  rec.lang = "pt-BR"; rec.interimResults = true; rec.continuous = true; rec.maxAlternatives = 1;
-
-  rec.onstart = function(){
-    gravando = true;
-    document.body.classList.add("ouvindo");
-    $("#btnParar").hidden = false;
-    $("#btnMicDeNovo").hidden = true;
-    $("#tituloOuvindo").textContent = "Pode falar agora";
-    $("#subOuvindo").textContent = "Quando terminar, aperte o botão vermelho de parar.";
-    $("#seloOuvindo").textContent = "Estou ouvindo";
-  };
-  rec.onresult = function(ev){
-    var fechado = "", aberto = "";
-    for(var k = 0; k < ev.results.length; k++){
-      var r = ev.results[k];
-      if(r.isFinal) fechado += r[0].transcript; else aberto += r[0].transcript;
-    }
-    textoOuvido = (fechado + " " + aberto).replace(/\s+/g," ").trim();
-    var a = $("#aoVivo"); if(a) a.textContent = textoOuvido;
-  };
-  rec.onerror = function(ev){
-    gravando = false;
-    document.body.classList.remove("ouvindo");
-    var erro = ev && ev.error;
-    if(erro === "not-allowed" || erro === "service-not-allowed"){
-      S.micOk = false;
-      $("#tituloOuvindo").textContent = "O microfone está bloqueado";
-      $("#subOuvindo").textContent = dentroDeQuadro
-        ? "Esta janela não tem permissão de microfone. Abra o link numa aba do navegador, ou responda escrevendo."
-        : "Toque no cadeado ao lado do endereço e libere o microfone. Ou responda escrevendo.";
-      $("#seloOuvindo").textContent = "Microfone bloqueado";
-      $("#btnParar").hidden = true;
-      $("#btnMicDeNovo").hidden = true;
-      falar("O microfone está bloqueado. Você pode responder escrevendo.");
-      return;
-    }
-    if(erro === "network"){ ir("t-offline"); return; }
-    if(erro === "no-speech"){
-      $("#tituloOuvindo").textContent = "Não ouvi nada";
-      $("#subOuvindo").textContent = "Toque no botão abaixo e fale mais perto do aparelho.";
-    }
-    $("#btnParar").hidden = true;
-    $("#btnMicDeNovo").hidden = false;
-  };
-  rec.onend = function(){
-    gravando = false;
-    document.body.classList.remove("ouvindo");
-    if(encerrando) return;
-    if(S.tela === "t-ouvindo" && !textoOuvido){
-      $("#btnParar").hidden = true;
-      $("#btnMicDeNovo").hidden = false;
-    }
-  };
-  try{ rec.start(); }
-  catch(e){ $("#btnParar").hidden = true; $("#btnMicDeNovo").hidden = false; return false; }
-  return true;
+function temMic(){
+  return !!(navigator.mediaDevices && navigator.mediaDevices.getUserMedia && window.MediaRecorder) && S.micOk !== false;
 }
-
-function pararGravacao(){
-  encerrando = true;
-  if(rec){ try{ rec.stop(); }catch(e){} }
+function tipoAudio(){
+  if(!window.MediaRecorder || !MediaRecorder.isTypeSupported) return "";
+  for(var k = 0; k < TIPOS_AUDIO.length; k++){ if(MediaRecorder.isTypeSupported(TIPOS_AUDIO[k])) return TIPOS_AUDIO[k]; }
+  return "";
+}
+// O microfone fica aberto durante o uso do app. Abrir de novo a cada resposta
+// atrasava o começo da gravação e cortava a primeira palavra ("São Paulo" -> "Paulo").
+function micAberto(){
+  return !!(fluxoMic && fluxoMic.getAudioTracks().some(function(t){ return t.readyState === "live"; }));
+}
+function abrirMic(){
+  if(micAberto()) return Promise.resolve(fluxoMic);
+  return navigator.mediaDevices.getUserMedia({audio:{echoCancellation:true, noiseSuppression:true, autoGainControl:true}})
+    .then(function(f){ fluxoMic = f; return f; });
+}
+function fecharMic(){
+  if(fluxoMic){ fluxoMic.getTracks().forEach(function(t){ t.stop(); }); fluxoMic = null; }
+}
+window.addEventListener("pagehide", fecharMic);
+function soltarMic(){
+  clearInterval(timerRelogio); clearTimeout(timerLimite);
   gravando = false;
   document.body.classList.remove("ouvindo");
 }
+function relogio(){
+  var s = Math.floor((Date.now() - inicioGravacao) / 1000);
+  var a = $("#aoVivo"); if(a) a.textContent = "Gravando… " + Math.floor(s / 60) + ":" + ("0" + (s % 60)).slice(-2);
+}
+function micBloqueado(){
+  S.micOk = false;
+  $("#tituloOuvindo").textContent = "O microfone está bloqueado";
+  $("#subOuvindo").textContent = dentroDeQuadro
+    ? "Esta janela não tem permissão de microfone. Abra o link numa aba do navegador, ou responda escrevendo."
+    : "Toque no cadeado ao lado do endereço e libere o microfone. Ou responda escrevendo.";
+  $("#seloOuvindo").textContent = "Microfone bloqueado";
+  $("#btnParar").hidden = true;
+  $("#btnMicDeNovo").hidden = true;
+  falar("O microfone está bloqueado. Você pode responder escrevendo.");
+}
+
+function iniciarGravacao(){
+  if(!temMic()){ ir("t-escrever"); return false; }
+  soltarMic();
+  pedacos = []; descartar = false;
+  var el = $("#aoVivo"); if(el) el.textContent = "";
+  $("#btnParar").hidden = true;
+  $("#btnMicDeNovo").hidden = true;
+  abrirMic().then(function(fluxo){
+    if(S.tela !== "t-ouvindo") return;
+    var tipo = tipoAudio();
+    try{ gravador = tipo ? new MediaRecorder(fluxo, {mimeType:tipo}) : new MediaRecorder(fluxo); }
+    catch(e){ soltarMic(); ir("t-escrever"); return; }
+    gravador.ondataavailable = function(ev){ if(ev.data && ev.data.size) pedacos.push(ev.data); };
+    gravador.onstop = function(){
+      var segundos = (Date.now() - inicioGravacao) / 1000;
+      var blob = new Blob(pedacos, {type: gravador.mimeType || tipo || "audio/webm"});
+      soltarMic();
+      var jogarFora = descartar; finalizando = false;
+      if(jogarFora) return;
+      if(segundos < 0.8 || blob.size < 1000){ falhaAudio(); return; }
+      enviarAudio(blob);
+    };
+    gravador.start(1000);
+    inicioGravacao = Date.now();
+    gravando = true;
+    document.body.classList.add("ouvindo");
+    $("#btnParar").hidden = false;
+    $("#tituloOuvindo").textContent = "Pode falar agora";
+    $("#subOuvindo").textContent = "Quando terminar, aperte o botão vermelho de parar.";
+    $("#seloOuvindo").textContent = "Estou ouvindo";
+    relogio();
+    timerRelogio = setInterval(relogio, 500);
+    timerLimite = setTimeout(function(){ if(gravando) terminarGravacao(); }, LIMITE_GRAVACAO * 1000);
+  }).catch(function(err){
+    soltarMic(); fecharMic();
+    if(err && (err.name === "NotAllowedError" || err.name === "SecurityError")){ micBloqueado(); return; }
+    S.micOk = false;
+    ir("t-escrever");
+  });
+  return true;
+}
+
+// Para e manda o áudio para transcrever.
+function terminarGravacao(){
+  if(!gravador || gravador.state === "inactive"){ falhaAudio(); return; }
+  descartar = false; finalizando = true;
+  try{ gravador.stop(); }catch(e){ finalizando = false; soltarMic(); falhaAudio(); return; }
+  ir("t-processando");
+}
+// Para sem aproveitar o áudio (trocou de tela, preferiu escrever).
+function pararGravacao(){
+  if(finalizando) return;
+  descartar = true;
+  if(gravador && gravador.state !== "inactive"){ try{ gravador.stop(); }catch(e){} }
+  soltarMic();
+}
+
+// Falha na gravação ou na transcrição: volta para a tela certa.
+function falhaAudio(msg){
+  if(S.modoAjuste){
+    S.modoAjuste = false;
+    ir("t-ajuste");
+    avisoAjuste(msg || "Não consegui entender. Toque no botão vermelho e fale de novo, ou escreva.");
+    return;
+  }
+  ir("t-erro");
+}
+
+function enviarAudio(blob){
+  var p = perguntaAtual();
+  var dica = S.modoAjuste ? "O que você quer mudar no currículo?" : (p ? p.texto : "");
+  var ctrl = window.AbortController ? new AbortController() : null;
+  var limite = setTimeout(function(){ if(ctrl) ctrl.abort(); }, 30000);
+  fetch("/api/transcrever", {
+    method: "POST",
+    headers: {"Content-Type": blob.type || "audio/webm", "X-Pergunta": encodeURIComponent(dica)},
+    body: blob,
+    signal: ctrl ? ctrl.signal : undefined
+  }).then(function(r){
+    return r.json().catch(function(){ return {}; }).then(function(j){ return {status:r.status, j:j}; });
+  }).then(function(res){
+    clearTimeout(limite);
+    if(S.tela !== "t-processando") return;
+    var texto = res.j && typeof res.j.texto === "string" ? res.j.texto.trim() : "";
+    if(res.status === 200 && texto && S.modoAjuste){
+      S.modoAjuste = false;
+      var c = $("#campoAjuste");
+      c.value = (c.value.trim() ? c.value.trim() + " " : "") + texto;
+      ir("t-ajuste");
+      validarAjuste();
+      return;
+    }
+    if(res.status === 200 && texto){ S.rascunho = texto; tratarResposta(texto, "voz"); return; }
+    if(S.modoAjuste){ falhaAudio(res.status === 503 || res.status === 429 ? "Agora não consigo ouvir. Escreva o que quer mudar, por favor." : null); return; }
+    if(res.status === 503 || res.status === 429){
+      // Transcrição desligada ou limite atingido: segue escrevendo.
+      S.micOk = false;
+      falar("Agora não consigo ouvir. Escreva a sua resposta, por favor.");
+      ir("t-escrever");
+      return;
+    }
+    ir("t-erro");
+  }).catch(function(){
+    clearTimeout(limite);
+    if(S.tela !== "t-processando") return;
+    if(navigator.onLine === false && !S.modoAjuste){ ir("t-offline"); return; }
+    falhaAudio();
+  });
+}
+
 function pararTudo(){ calar(); pararGravacao(); clearTimeout(timerAuto); clearTimeout(timerRepetir); clearInterval(timerFrases); lendo = false; }
 
 function falarResposta(){
@@ -205,7 +468,7 @@ function numeroDe(texto){
   if(so) return parseInt(so, 10);
   var total = 0, achou = false;
   t.split(/[\s,]+/).forEach(function(p){
-    var v = valorDe(p);
+    var v = valorDe(p.replace(/[^a-z]/g, ""));
     if(v !== null){ total += v; achou = true; }
   });
   return achou ? total : null;
@@ -250,6 +513,10 @@ var UFS = {"acre":"AC","alagoas":"AL","amapa":"AP","amazonas":"AM","bahia":"BA",
   "pernambuco":"PE","piaui":"PI","rio de janeiro":"RJ","rio grande do norte":"RN",
   "rio grande do sul":"RS","rondonia":"RO","roraima":"RR","santa catarina":"SC",
   "sao paulo":"SP","sergipe":"SE","tocantins":"TO"};
+var NOME_UF = {AC:"Acre",AL:"Alagoas",AP:"Amapá",AM:"Amazonas",BA:"Bahia",CE:"Ceará",DF:"Distrito Federal",
+  ES:"Espírito Santo",GO:"Goiás",MA:"Maranhão",MT:"Mato Grosso",MS:"Mato Grosso do Sul",MG:"Minas Gerais",PA:"Pará",
+  PB:"Paraíba",PR:"Paraná",PE:"Pernambuco",PI:"Piauí",RJ:"Rio de Janeiro",RN:"Rio Grande do Norte",RS:"Rio Grande do Sul",
+  RO:"Rondônia",RR:"Roraima",SC:"Santa Catarina",SP:"São Paulo",SE:"Sergipe",TO:"Tocantins"};
 var SIGLAS = ["AC","AL","AP","AM","BA","CE","DF","ES","GO","MA","MT","MS","MG","PA","PB","PR","PE","PI","RJ","RN","RS","RO","RR","SC","SP","SE","TO"];
 
 function maiusculas(t){
@@ -258,6 +525,105 @@ function maiusculas(t){
     if(["de","da","do","das","dos","e"].indexOf(p.toLowerCase()) >= 0) return p.toLowerCase();
     return p.charAt(0).toUpperCase() + p.slice(1).toLowerCase();
   }).join(" ");
+}
+
+/* e-mail falado: "jose ponto silva arroba gmail ponto com" -> jose.silva@gmail.com */
+function emailFalado(t){
+  return semAcento(t)
+    .replace(/[,;:!?"'“”()]/g, " ")             // "Dudu Losco, arroba gmail" -> sem vírgula
+    .replace(/\b(o meu e-?mail e|meu e-?mail e|o e-?mail e|e-?mail|e assim|tudo junto|junto)\b/g, " ")
+    .replace(/\s*\b(arroba|aroba)\b\s*/g, "@")
+    .replace(/\s*\b(ponto)\b\s*/g, ".")
+    .replace(/\s*\b(underline|underscore|sublinhado|under)\b\s*/g, "_")
+    .replace(/\s*\b(traco|tracinho|hifen|menos)\b\s*/g, "-")
+    .replace(/\s+/g, "")
+    .replace(/^[.,;:"'“”]+|[.,;:!?"'“”]+$/g, "");
+}
+
+/* A transcrição põe ponto final e aspas ("Vinte e dois."). Em respostas curtas, isso sai. */
+// Hesitação no começo da fala: "é... Universidade Mackenzie", "ahn, Guarulhos"
+var HESITA = /^(?:(?:é+|eh+|ah+n*|ã+h*|hum+|hm+|uhm+|hã+|então|entao|tipo|bom|olha|assim|deixa eu ver)(?:[\s,.…]+|$))+/i;
+// Palavra soletrada: "D-I-S-C-E-R-E" ou "d i s c e r e" -> "Discere"
+function juntarSoletrado(t){
+  return t.replace(/(^|[\s(])((?:[A-Za-zÀ-ú][\s.\-]+){2,}[A-Za-zÀ-ú])(?=$|[\s,.;:!?)])/g, function(m, antes, letras){
+    var w = letras.replace(/[\s.\-]+/g, "");
+    return antes + w.charAt(0).toUpperCase() + w.slice(1).toLowerCase();
+  });
+}
+function limparFala(t, tipo){
+  t = String(t || "").replace(/\s+/g, " ").trim().replace(/^["'“”]+|["'“”]+$/g, "");
+  if(tipo !== "longo"){
+    t = t.replace(HESITA, "").replace(/[.!?,;:…]+$/g, "").trim();
+    if(tipo !== "email" && tipo !== "telefone" && tipo !== "estado" && tipo !== "cidade") t = juntarSoletrado(t);
+  }
+  return t;
+}
+
+/* "Guarulhos, São Paulo" / "Guarulhos SP" / "moro em Campinas no estado de São Paulo"
+   -> {cidade:"Guarulhos", estado:"São Paulo (SP)"}. Sem estado: {cidade, estado:""}. */
+var CAPITAL_MESMO_NOME = {"sao paulo":"SP", "rio de janeiro":"RJ"};
+var LIGA_FIM = ["no","na","em","estado","de","do","da","e","aqui","la","ai"];
+var LIGA_COMECO = ["eu","moro","em","na","no","cidade","de","sou","fico","a","o","so","nao","e","aqui","la","atualmente","hoje"];
+
+/* Confere a cidade na lista do IBGE (municipios.js): acha, dentro da fala,
+   o nome de município mais longo, de preferência no estado que a pessoa disse.
+   "Salvador, aqui na Bahia" -> {nome:"Salvador", uf:"BA"}. */
+var indiceMunicipios = null;
+function montarIndiceMunicipios(){
+  indiceMunicipios = {};
+  var M = window.MUNICIPIOS || {};
+  Object.keys(M).forEach(function(uf){
+    M[uf].split("|").forEach(function(nome){
+      var chave = semAcento(nome).replace(/[^a-z\s]/g, " ").replace(/\s+/g, " ").trim();
+      (indiceMunicipios[chave] = indiceMunicipios[chave] || []).push({nome:nome, uf:uf});
+    });
+  });
+}
+function acharMunicipio(texto, ufDita){
+  if(!window.MUNICIPIOS) return null;
+  if(!indiceMunicipios) montarIndiceMunicipios();
+  var w = semAcento(texto).replace(/[^a-z\s]/g, " ").split(/\s+/).filter(Boolean);
+  var melhor = null;
+  for(var i = 0; i < w.length; i++){
+    for(var n = Math.min(6, w.length - i); n >= 1; n--){
+      var lista = indiceMunicipios[w.slice(i, i + n).join(" ")];
+      if(!lista) continue;
+      var noEstado = ufDita ? lista.filter(function(m){ return m.uf === ufDita; }) : [];
+      var nota = n * 10 + (noEstado.length ? 100 : 0);
+      if(!melhor || nota > melhor.nota){
+        melhor = {nota:nota, nome:(noEstado[0] || lista[0]).nome,
+                  uf: noEstado.length ? ufDita : (lista.length === 1 ? lista[0].uf : ""), varios: lista.length > 1};
+      }
+      break;
+    }
+  }
+  return melhor;
+}
+function cidadeEstado(texto){
+  var orig = String(texto || "").replace(/[,;/–—-]+/g, " ").replace(/[.!?]+$/g, "").split(/\s+/)
+    .map(function(w){ return {o:w, n:semAcento(w).replace(/[^a-z]/g, "")}; })
+    .filter(function(w){ return w.n || /\d/.test(w.o); });
+  var norm = orig.map(function(w){ return w.n; });
+  var uf = "", corte = orig.length;
+  var ult = orig.length ? orig[orig.length - 1].o.toUpperCase().replace(/[^A-Z]/g, "") : "";
+  if(orig.length > 1 && ult.length === 2 && SIGLAS.indexOf(ult) >= 0){ uf = ult; corte = orig.length - 1; }
+  else{
+    var nomes = Object.keys(UFS).sort(function(x, y){ return y.length - x.length; });
+    for(var k = 0; k < nomes.length && !uf; k++){
+      var partes = nomes[k].split(" "), n = partes.length;
+      if(norm.length >= n && norm.slice(norm.length - n).join(" ") === nomes[k]){ uf = UFS[nomes[k]]; corte = norm.length - n; }
+    }
+  }
+  var cid = orig.slice(0, corte);
+  while(cid.length && LIGA_FIM.indexOf(cid[cid.length - 1].n) >= 0) cid.pop();
+  while(cid.length > 1 && LIGA_COMECO.indexOf(cid[0].n) >= 0) cid.shift();
+  var cidade = maiusculas(cid.map(function(w){ return w.o; }).join(" "));
+  if(!cidade && uf){
+    // "São Paulo" sozinho: cidade e estado com o mesmo nome
+    var nomeEstado = semAcento(NOME_UF[uf]);
+    if(CAPITAL_MESMO_NOME[nomeEstado]) cidade = NOME_UF[uf];
+  }
+  return {cidade:cidade, estado: uf ? NOME_UF[uf] + " (" + uf + ")" : ""};
 }
 
 /* ============================================================
@@ -269,6 +635,47 @@ function ehVazia(t){
   return !s || VAZIAS.indexOf(s) >= 0;
 }
 
+/* "meu nome é Giovanna Zardo, e é Giovanna com dois enes" -> "Giovanna Zardo" */
+function nomeSemConversa(t){
+  t = t.replace(/^(o\s+)?(meu nome (completo )?(é|e)|eu me chamo|me chamo|eu sou (o |a )?)\s+/i, "");
+  // "Felipe Figueira Losco. O Felipe é com PH e dois L's" -> corta no ponto
+  var frases = t.split(/\s*[.;,]\s+/);
+  if(frases.length > 1 && /\b(com|é|eh|escreve|escrito|letra|letras|dois|duas|ph|th)\b/i.test(frases.slice(1).join(" "))) t = frases[0];
+  var corte = t.search(/,?\s+(e\s+)?(é|eh)\s+(com|assim|tudo)\b|,?\s+(com|tem)\s+(dois|duas|um|uma|\d)\s|\s+se\s+escreve|\s+escrito\s+com|,\s*e\s+/i);
+  if(corte > 0) t = t.slice(0, corte);
+  return t.replace(/[.,;:]+$/, "").trim();
+}
+
+/* "eu fiquei oito anos nesse trabalho" -> "8 anos"; "um ano e três meses" -> "1 ano e 3 meses" */
+var UNIDADES = {dia:["dia","dias"], dias:["dia","dias"], semana:["semana","semanas"], semanas:["semana","semanas"],
+  mes:["mês","meses"], meses:["mês","meses"], ano:["ano","anos"], anos:["ano","anos"]};
+function extrairPeriodo(t){
+  var w = semAcento(t).replace(/[^a-z0-9\s]/g, " ").split(/\s+/).filter(Boolean);
+  var ehNum = function(x){ return /^\d+$/.test(x) || valorDe(x) !== null; };
+  var partes = [], qualif = "";
+  for(var k = 0; k < w.length; k++){
+    if(!UNIDADES[w[k]]) continue;
+    var j = k - 1, nums = [];
+    while(j >= 0 && (ehNum(w[j]) || (w[j] === "e" && j > 0 && ehNum(w[j-1])))){ nums.unshift(w[j]); j--; }
+    if(!nums.length) continue;
+    if(!partes.length){
+      var antes = w.slice(Math.max(0, j - 2), j + 1).join(" ");
+      if(/quase$/.test(antes)) qualif = "Quase ";
+      else if(/mais de$/.test(antes)) qualif = "Mais de ";
+      else if(/(uns|umas|cerca de|mais ou menos|uns|por volta de)$/.test(antes)) qualif = "Cerca de ";
+    }
+    var n = numeroDe(nums.filter(function(x){ return x !== "e"; }).join(" "));
+    if(!n) continue;
+    var u = UNIDADES[w[k]];
+    var txt = n + " " + (n === 1 ? u[0] : u[1]);
+    if(w[k+1] === "e" && (w[k+2] === "meio" || w[k+2] === "meia")){ txt += " e meio"; k += 2; }
+    partes.push(txt);
+    if(partes.length === 2) break;
+  }
+  if(!partes.length) return "";
+  return qualif + partes.join(" e ");
+}
+
 function validar(p, texto, obrigatoria){
   var t = String(texto || "").replace(/\s+/g," ").trim();
   if(!t) return {ok:false, titulo:"Não recebi a sua resposta", msg:"Vamos tentar de novo? " + p.ajuda};
@@ -276,6 +683,7 @@ function validar(p, texto, obrigatoria){
 
   switch(p.tipo){
     case "nome":
+      t = nomeSemConversa(t);
       if(t.split(/\s+/).filter(function(x){ return x.length > 1; }).length < 2)
         return {ok:false, titulo:"Faltou o sobrenome", msg:"Preciso do nome e do sobrenome. Fale assim: José da Silva."};
       return {ok:true, valor:maiusculas(t)};
@@ -300,21 +708,33 @@ function validar(p, texto, obrigatoria){
       return {ok:true, valor:mascaraTelefone(d)};
 
     case "email":
-      var e = semAcento(t).replace(/\s*arroba\s*/g,"@").replace(/\s*ponto\s*/g,".")
-        .replace(/\s*underline\s*/g,"_").replace(/\s*traco\s*/g,"-").replace(/\s+/g,"");
+      var e = emailFalado(t);
       if(!/^[a-z0-9._%+-]+@[a-z0-9.-]+\.[a-z]{2,}$/.test(e))
         return {ok:false, titulo:"Esse e-mail não está completo",
-                msg:"Um e-mail precisa ter arroba e um ponto, assim: jose@gmail.com. É mais fácil escrever do que falar.", escrever:true};
+                msg:"Um e-mail tem arroba e ponto. Fale devagar, assim: jose ponto silva arroba gmail ponto com. Ou toque em escrever."};
       return {ok:true, valor:e};
+
+    case "cidade":
+      var ce = cidadeEstado(t);
+      var ufDita = (ce.estado.match(/\(([A-Z]{2})\)$/) || [])[1] || "";
+      // procura só na parte da cidade (o estado do fim já saiu)
+      var mun = ce.cidade ? acharMunicipio(ce.cidade, ufDita) : null;
+      if(mun){
+        ce.cidade = mun.nome;                     // grafia oficial, com acento
+        if(!ufDita && mun.uf) ce.estado = NOME_UF[mun.uf] + " (" + mun.uf + ")";
+      }
+      if(!ce.cidade) return {ok:false, titulo:"Faltou o nome da cidade", msg:"Fale a cidade e o estado. Por exemplo: Guarulhos, São Paulo."};
+      return {ok:true, valor:ce.cidade, estado:ce.estado,
+              mostrar: ce.estado ? ce.cidade + ", " + ce.estado.replace(/\s*\([A-Z]{2}\)$/, "") : ce.cidade};
 
     case "estado":
       var s = semAcento(t).replace(/[^a-z\s]/g,"").trim();
-      if(UFS[s]) return {ok:true, valor:maiusculas(s) + " (" + UFS[s] + ")"};
+      if(UFS[s]) return {ok:true, valor:NOME_UF[UFS[s]] + " (" + UFS[s] + ")"};
       var sig = t.toUpperCase().replace(/[^A-Z]/g,"");
       if(sig.length === 2 && SIGLAS.indexOf(sig) >= 0){
-        for(var nm in UFS){ if(UFS[nm] === sig) return {ok:true, valor:maiusculas(nm) + " (" + sig + ")"}; }
+        return {ok:true, valor:NOME_UF[sig] + " (" + sig + ")"};
       }
-      for(var k in UFS){ if(s.indexOf(k) >= 0) return {ok:true, valor:maiusculas(k) + " (" + UFS[k] + ")"}; }
+      for(var k in UFS){ if(s.indexOf(k) >= 0) return {ok:true, valor:NOME_UF[UFS[k]] + " (" + UFS[k] + ")"}; }
       return {ok:false, titulo:"Não reconheci esse estado", msg:"Fale o nome do estado onde fica a sua cidade. Por exemplo: São Paulo, Bahia, Ceará."};
 
     case "periodo":
@@ -323,7 +743,9 @@ function validar(p, texto, obrigatoria){
       var temUnidade = /(mes|meses|ano|anos|semana|semanas|dia|dias)/.test(sa);
       if(!temNumero || !temUnidade)
         return {ok:false, titulo:"Preciso do tempo certinho", msg:"Fale quanto tempo com número e a palavra mês ou ano. Por exemplo: dois anos, ou oito meses."};
-      return {ok:true, valor:t};
+      // "eu fiquei oito anos nesse trabalho" -> "8 anos"
+      var per = extrairPeriodo(t);
+      return {ok:true, valor: per || t};
 
     case "longo":
       if(t.split(/\s+/).length < 4)
@@ -355,6 +777,9 @@ function perguntaAtual(){
   var g = grupoAtual();
   if(S.pos.q === -1) return g.porta;
   return g.perguntas[S.pos.q];
+}
+function frasePergunta(p){
+  return p.texto + ". " + p.ajuda + (p.opcoes ? " " + p.opcoes.join(", ") + "." : "");
 }
 function aplicavel(p, it){ return !p.mostrarSe || !!p.mostrarSe(it); }
 function ehObrig(p, it){
@@ -400,20 +825,22 @@ function proximoGrupo(){
   var gi = S.pos.g + 1;
 
   while(gi < ROTEIRO.length){
-    if(S.editandoSecao && ROTEIRO[gi].secao !== S.editandoSecao){ S.editandoSecao = null; ir("t-tudocerto"); return; }
+    if(S.editandoSecao && ROTEIRO[gi].secao !== S.editandoSecao){ S.editandoSecao = null; gerarCurriculo(); return; }
     break;
   }
   if(gi >= ROTEIRO.length){
     S.editandoSecao = null;
     var falta = faltandoObrigatorios();
     if(falta.length){ ir("t-faltando"); return; }
-    ir("t-conferir");
+    gerarCurriculo();
     return;
   }
 
   S.pos = {g:gi, inst:0, q:-1};
   var novo = grupoAtual();
-  if(!S.editandoSecao && novo.secao !== anterior.secao){ ir("t-progresso"); return; }
+  if(!S.editandoSecao && novo.secao !== anterior.secao){
+    S.anuncio = "Muito bem! Agora vamos para " + secaoInfo(novo.secao).nome + ".";
+  }
   entrarGrupo();
 }
 
@@ -425,6 +852,24 @@ function mostrarPergunta(){
   // ao trocar de pergunta, o rascunho anterior não pode sobrar no campo
   var chave = S.pos.g + ":" + S.pos.inst + ":" + S.pos.q;
   if(chave !== S.ultimaChave){ S.rascunho = ""; S.ultimaChave = chave; }
+
+  // histórico para o botão "Voltar para a pergunta anterior"
+  if(!S.historico) S.historico = [];
+  var topo = S.historico[S.historico.length - 1];
+  if(!S.voltando && (!topo || topo.g !== S.pos.g || topo.inst !== S.pos.inst || topo.q !== S.pos.q)){
+    S.historico.push({g:S.pos.g, inst:S.pos.inst, q:S.pos.q});
+    if(S.historico.length > 200) S.historico.shift();
+  }
+  S.voltando = false;
+  $("#btnVoltarPergunta").hidden = S.historico.length < 2 || !!S.editandoSecao || !!S.conferindoFaltas;
+
+  // ao voltar, mostra o que a pessoa tinha respondido
+  var antes = (S.pos.q === -1) ? S.portas[g.id] : it[p.id];
+  S.valorAntes = antes || "";
+  if(p.tipo === "cidade" && antes && it.estado) antes = antes + ", " + String(it.estado).replace(/\s*\([A-Z]{2}\)$/, "");
+  var ra = $("#respostaAntes");
+  ra.hidden = !antes;
+  if(antes) ra.querySelector("b").textContent = antes;
 
   var obrigatoria = (S.pos.q === -1) ? true : ehObrig(p, it);
   var sec = secaoInfo(g.secao);
@@ -462,10 +907,10 @@ function mostrarPergunta(){
     }).join("");
     cx.hidden = false;
   }else{ cx.innerHTML = ""; cx.hidden = true; }
-  var escritaPrimeiro = !!p.escrever || !temMic() || S.modo === "ajuda";
+  var escritaPrimeiro = !!p.escrever || !temMic();
 
   var exB = $("#exemploPergunta"), exE = $("#exemploEsc");
-  var mostrarEx = (S.modo === "ajuda") && !!p.exemplo && !temOpcoes;
+  var mostrarEx = !!p.exemplo && !temOpcoes && !S.valorAntes; // com resposta anterior, o exemplo sai
   exB.hidden = !mostrarEx; exE.hidden = !mostrarEx;
   if(mostrarEx){
     exB.querySelector("b").textContent = p.exemplo;
@@ -480,6 +925,7 @@ function mostrarPergunta(){
   if(escritaPrimeiro) acoes.insertBefore($("#btnEscrever"), $("#btnFalar"));
   else acoes.insertBefore($("#btnFalar"), $("#btnEscrever"));
   $("#btnPularAqui").hidden = obrigatoria;
+  $("#btnPularAqui").textContent = p.pular || "Pular esta pergunta";
 
   ir("t-pergunta");
 }
@@ -495,21 +941,63 @@ function guardar(valor){
     return;
   }
   instancia(g)[p.id] = valor;
+  S.rascunhoMostrar = "";
+  if(p.tipo === "cidade" && S.estadoJunto !== null && S.estadoJunto !== undefined){
+    instancia(g).estado = S.estadoJunto; // vazio: a pergunta do estado aparece em seguida
+    S.estadoJunto = null;
+  }
   if(S.conferindoFaltas){
     var falta = faltandoObrigatorios();
     if(falta.length){ ir("t-faltando"); return; }
     S.conferindoFaltas = false;
-    ir("t-conferir");
+    gerarCurriculo();
     return;
   }
   proximaPergunta();
 }
 
-function tratarResposta(texto){
+/* Resposta curta que veio com conversa junto ("eu era recepcionista lá",
+   "Giovanna com dois enes"): a IA tira só a informação pedida. A resposta
+   da IA é conferida no servidor; se falhar, segue com a fala da pessoa. */
+var LIMITE_PALAVRAS = {nome:4, objetivo:4, cargo:4, empresa:5, curso:5, instituicao:6};
+var CONVERSA = /\b(eu|meu|minha|to|tou|estou|era|trabalhava|trabalhei|procurando|procuro|quero|fiz|fazia|estudei|estudo|chamo|chama|escreve|escrito|dois|duas|la|aqui|tipo|alguma|algum|coisa|parte|vaga)\b/;
+function precisaEntender(p, t){
+  if(!p || !LIMITE_PALAVRAS[p.id] || !window.fetch) return false;
+  var n = t.split(/\s+/).filter(Boolean).length;
+  return n > LIMITE_PALAVRAS[p.id] || CONVERSA.test(semAcento(t));
+}
+function entenderResposta(p, t){
+  var ctrl = window.AbortController ? new AbortController() : null;
+  var limite = setTimeout(function(){ if(ctrl) ctrl.abort(); }, 9000);
+  return fetch("/api/entender", {
+    method:"POST", headers:{"Content-Type":"application/json"},
+    body: JSON.stringify({campo:p.id, pergunta:p.texto, resposta:t}),
+    signal: ctrl ? ctrl.signal : undefined
+  }).then(function(r){ return r.json(); }).then(function(j){
+    clearTimeout(limite);
+    return j && j.ok && j.valor ? j.valor : null;
+  }).catch(function(){ clearTimeout(limite); return null; });
+}
+
+function tratarResposta(texto, origem, jaEntendido){
   var g = grupoAtual(), p = perguntaAtual(), it = instancia(g);
+  if(origem === "voz" && p && !p.opcoes && !jaEntendido) texto = limparFala(texto, p.tipo);
+  if(origem === "voz" && !jaEntendido && precisaEntender(p, texto)){
+    var meu = p, tela = S.tela;
+    entenderResposta(p, texto).then(function(valor){
+      if(perguntaAtual() !== meu || S.tela !== tela) return; // a pessoa já saiu daqui
+      tratarResposta(valor || texto, origem, true);
+    });
+    return;
+  }
   var obrigatoria = (S.pos.q === -1) ? true : ehObrig(p, it);
   var v = validar(p, texto, obrigatoria);
-  if(v.ok){ S.rascunho = v.valor; ir("t-confirmar"); }
+  if(v.ok){
+    S.rascunho = v.valor;
+    S.rascunhoMostrar = v.mostrar || "";
+    S.estadoJunto = (p && p.tipo === "cidade") ? (v.estado || "") : null;
+    if(origem === "voz") ir("t-confirmar"); else guardar(v.valor);
+  }
   else{ S.rascunho = texto; mostrarFaltou(v, texto); }
 }
 
@@ -576,7 +1064,7 @@ function montarFaltando(){
 }
 $("#btnIrFaltando").addEventListener("click", function(){
   var falta = faltandoObrigatorios();
-  if(!falta.length){ S.conferindoFaltas = false; ir("t-conferir"); return; }
+  if(!falta.length){ S.conferindoFaltas = false; gerarCurriculo(); return; }
   calar();
   S.conferindoFaltas = true;
   S.pos = {g:falta[0].g, inst:falta[0].inst, q:falta[0].q};
@@ -590,7 +1078,29 @@ $("#btnFalar").addEventListener("click", falarResposta);
 $("#btnEscrever").addEventListener("click", function(){ calar(); ir("t-escrever"); });
 $("#btnOuvirPergunta").addEventListener("click", function(){
   var p = perguntaAtual();
-  if(p) falar(p.texto + ". " + p.ajuda + (p.opcoes ? " " + p.opcoes.join(", ") + "." : ""));
+  if(p) falar(frasePergunta(p));
+});
+function itemVazio(it){
+  return !it || !Object.keys(it).some(function(k){ return it[k]; });
+}
+$("#btnVoltarPergunta").addEventListener("click", function(){
+  pararTudo();
+  if(!S.historico || S.historico.length < 2) return;
+  var atual = S.historico.pop();
+  var ant = S.historico[S.historico.length - 1];
+  // se voltou de um trabalho/escola/curso novo que ainda está vazio, ele sai da lista
+  var g = ROTEIRO[atual.g], lista = S.dados[g.id] || [];
+  if(atual.inst !== ant.inst || atual.g !== ant.g){
+    if(atual.inst > 0 && atual.inst === lista.length - 1 && itemVazio(lista[atual.inst])) lista.pop();
+  }
+  S.pos = {g:ant.g, inst:ant.inst, q:ant.q};
+  S.voltando = true;
+  mostrarPergunta();
+  falar("Voltamos. " + frasePergunta(perguntaAtual()));
+});
+$("#btnManterResp").addEventListener("click", function(){
+  pararTudo();
+  if(S.valorAntes){ S.estadoJunto = null; guardar(S.valorAntes); }
 });
 $("#btnPularAqui").addEventListener("click", function(){
   calar();
@@ -605,15 +1115,13 @@ document.addEventListener("click", function(e){
   tratarResposta(b.getAttribute("data-opcao"));
 });
 
-$("#btnParar").addEventListener("click", function(){
-  pararGravacao();
-  var t = textoOuvido.trim();
-  if(!t){ ir("t-erro"); return; }
-  S.rascunho = t;
-  ir("t-processando");
-});
+$("#btnParar").addEventListener("click", function(){ terminarGravacao(); });
 $("#btnMicDeNovo").addEventListener("click", function(){ iniciarGravacao(); });
-$("#btnOuvindoEscrever").addEventListener("click", function(){ pararGravacao(); calar(); ir("t-escrever"); });
+$("#btnOuvindoEscrever").addEventListener("click", function(){
+  pararGravacao(); calar();
+  if(S.modoAjuste){ S.modoAjuste = false; ir("t-ajuste"); try{ $("#campoAjuste").focus(); }catch(e){} return; }
+  ir("t-escrever");
+});
 
 var campo = $("#campoResp"), campoDDD = $("#campoDDD"), campoNum = $("#campoNum");
 
@@ -649,7 +1157,7 @@ $("#btnSalvarEsc").addEventListener("click", function(){
 });
 $("#btnVoltarFala").addEventListener("click", falarResposta);
 
-$("#btnOuvirResp").addEventListener("click", function(){ falar(S.rascunho); });
+$("#btnOuvirResp").addEventListener("click", function(){ falar(privado(S.rascunhoMostrar || S.rascunho)); });
 $("#btnIssoMesmo").addEventListener("click", function(){ calar(); guardar(S.rascunho); });
 $("#btnRegravar").addEventListener("click", function(){
   var p = perguntaAtual();
@@ -669,10 +1177,9 @@ $("#btnPularErro").addEventListener("click", function(){
 
 /* --- microfone --- */
 $("#btnPermitir").addEventListener("click", function(){
-  var seguir = function(){ ir("t-como"); };
-  if(navigator.mediaDevices && navigator.mediaDevices.getUserMedia){
-    navigator.mediaDevices.getUserMedia({audio:true}).then(function(fluxo){
-      fluxo.getTracks().forEach(function(t){ t.stop(); });
+  var seguir = function(){ comecarRoteiro(); };
+  if(navigator.mediaDevices && navigator.mediaDevices.getUserMedia && window.MediaRecorder){
+    abrirMic().then(function(){
       S.micOk = true; seguir();
     }).catch(function(err){
       S.micOk = false;
@@ -691,15 +1198,88 @@ $("#btnPermitir").addEventListener("click", function(){
     setTimeout(seguir, 3000);
   }
 });
-$("#btnAgoraNao").addEventListener("click", function(){ S.micOk = false; ir("t-como"); });
+$("#btnAgoraNao").addEventListener("click", function(){ S.micOk = false; comecarRoteiro(); });
 
-$$("[data-modo]").forEach(function(b){
-  b.addEventListener("click", function(){
-    S.modo = b.getAttribute("data-modo");
-    aplicarModo();
-    zerar();
-    entrarGrupo();
-  });
+function comecarRoteiro(){
+  if(S.retomando){ S.retomando = false; continuarRoteiro(); return; }
+  zerar(); entrarGrupo();
+}
+
+/* ============================================================
+   PROGRESSO GUARDADO NO APARELHO
+   ------------------------------------------------------------
+   As respostas ficam no localStorage do navegador, só neste aparelho.
+   Nada vai para o servidor. Funciona igual no computador e no Cloudflare.
+   Se a página fechar ou recarregar, a pessoa continua de onde parou.
+   ============================================================ */
+var CHAVE_PROGRESSO = "falaCurriculo.progresso.v1";
+var VALIDADE_PROGRESSO = 30 * 24 * 60 * 60 * 1000; // 30 dias
+var TELAS_SALVAR = ["t-pergunta","t-mais","t-faltando","t-pronto","t-ajuste","t-corrigir","t-enviar"];
+
+function salvarProgresso(tela){
+  if(S.demo) return; // o painel "Todas as telas" usa dados de exemplo
+  try{
+    localStorage.setItem(CHAVE_PROGRESSO, JSON.stringify({
+      v:1, quando:Date.now(), tela:tela,
+      dados:S.dados, portas:S.portas, visitados:S.visitados, pos:S.pos,
+      editandoSecao:S.editandoSecao, conferindoFaltas:S.conferindoFaltas, cv:S.cv,
+      historico:S.historico || []
+    }));
+  }catch(e){ /* navegador sem espaço ou em modo privado: segue sem guardar */ }
+}
+function lerProgresso(){
+  try{
+    var p = JSON.parse(localStorage.getItem(CHAVE_PROGRESSO) || "null");
+    if(!p || p.v !== 1 || !p.dados || Date.now() - p.quando > VALIDADE_PROGRESSO) return null;
+    var temAlgo = Object.keys(p.dados).some(function(k){
+      return (p.dados[k] || []).some(function(it){ return it && Object.keys(it).length; });
+    });
+    return temAlgo ? p : null;
+  }catch(e){ return null; }
+}
+function apagarProgresso(){ try{ localStorage.removeItem(CHAVE_PROGRESSO); }catch(e){} }
+
+var salvoParaRetomar = null;
+function aplicarProgresso(p){
+  zerar();
+  S.dados = p.dados; S.portas = p.portas || {}; S.visitados = p.visitados || {};
+  S.pos = p.pos || {g:0, inst:0, q:-1};
+  S.editandoSecao = p.editandoSecao || null; S.conferindoFaltas = !!p.conferindoFaltas;
+  S.cv = p.cv || null;
+  S.historico = Array.isArray(p.historico) ? p.historico : [];
+  ROTEIRO.forEach(function(g){ if(!S.dados[g.id]) S.dados[g.id] = [{}]; });
+  S.telaSalva = p.tela;
+}
+function continuarRoteiro(){
+  var t = S.telaSalva; S.telaSalva = null;
+  if(S.cv && ["t-pronto","t-ajuste","t-corrigir","t-enviar"].indexOf(t) >= 0){
+    $("#previaCV").innerHTML = renderCV(S.cv);
+    ir("t-pronto");
+    $("#subPronto").textContent = "Este é o currículo que você já tinha feito. Veja se está tudo certo.";
+    return;
+  }
+  if(t === "t-mais"){ mostrarMais(); return; }
+  if(t === "t-faltando"){ ir("t-faltando"); return; }
+  mostrarPergunta();
+}
+function quandoFoi(ms){
+  var d = new Date(ms), hoje = new Date();
+  var hora = ("0" + d.getHours()).slice(-2) + ":" + ("0" + d.getMinutes()).slice(-2);
+  if(d.toDateString() === hoje.toDateString()) return "hoje, às " + hora;
+  return "no dia " + d.getDate() + "/" + (d.getMonth() + 1) + ", às " + hora;
+}
+$("#btnContinuar").addEventListener("click", function(){
+  calar();
+  if(!salvoParaRetomar){ ir("t-inicio"); return; }
+  aplicarProgresso(salvoParaRetomar);
+  salvoParaRetomar = null;
+  if(S.cv && ["t-pronto","t-ajuste","t-corrigir","t-enviar"].indexOf(S.telaSalva) >= 0){ continuarRoteiro(); return; }
+  S.retomando = true;   // passa pela tela do microfone e depois continua
+  ir("t-microfone");
+});
+$("#btnComecarDeNovo").addEventListener("click", function(){
+  calar(); apagarProgresso(); salvoParaRetomar = null; zerar();
+  ir("t-inicio");
 });
 
 /* --- progresso --- */
@@ -723,7 +1303,6 @@ function montarProgresso(){
   setTimeout(function(){ $("#barraProg").style.width = (feitas / SECOES.length * 100) + "%"; }, 80);
   return feitas;
 }
-$("#btnContinuar").addEventListener("click", function(){ calar(); entrarGrupo(); });
 
 /* ============================================================
    10. MONTAGEM DO CURRÍCULO
@@ -732,31 +1311,61 @@ function esc(t){ return String(t == null ? "" : t).replace(/&/g,"&amp;").replace
 function pes(id){ return (S.dados.pessoais && S.dados.pessoais[0] && S.dados.pessoais[0][id]) || ""; }
 function con(id){ return (S.dados.contato && S.dados.contato[0] && S.dados.contato[0][id]) || ""; }
 
+/* Linguagem de currículo (proposta de docs/modelo-curriculo-pdf.md, passos 1 e 2) */
+var SITUACAO_CV = {"Terminei":"Completo", "Não terminei":"Incompleto", "Ainda estou estudando":"Em andamento"};
+var CNH_CV = {"Sim, de moto":"CNH categoria A", "Sim, de carro":"CNH categoria B", "Sim, de moto e de carro":"CNH categorias A e B"};
+var MODALIDADE_CV = {"Sim, no local de trabalho":"Disponível para trabalho presencial",
+                     "Só de casa":"Disponível para trabalho remoto",
+                     "Dos dois jeitos":"Disponível para trabalho presencial ou remoto"};
+function capitalizar(t){ t = String(t || "").trim(); return t ? t.charAt(0).toUpperCase() + t.slice(1) : ""; }
+// "São Paulo" + "São Paulo (SP)"  ->  "São Paulo – SP"
+function localCV(cidade, estado){
+  var m = /\(([A-Z]{2})\)\s*$/.exec(estado || "");
+  return [cidade, m ? m[1] : estado].filter(Boolean).join(" – ");
+}
+function empresaCV(t){ return t === "Trabalhei por conta própria" ? "Autônomo" : t; }
+// "Faculdade" + "Administração" -> "Graduação em Administração"
+function tituloFormacao(f){
+  if(!f.curso) return f.nivel;
+  if(/faculdade/i.test(f.nivel)) return "Graduação em " + f.curso;
+  if(/t[eé]cnico/i.test(f.nivel)) return /^t[eé]cnico/i.test(f.curso) ? f.curso : "Técnico em " + f.curso;
+  return f.nivel + " em " + f.curso;
+}
+function linhaFormacao(f){ return [tituloFormacao(f), f.situacao].filter(Boolean).join(" – "); }
+function formacaoTexto(f){
+  if(typeof f === "string") return f;
+  return [linhaFormacao(f), f.instituicao].filter(Boolean).join(", ");
+}
+function listaDe(a){ return Array.isArray(a) ? a.filter(Boolean) : (a ? [capitalizar(a)] : []); }
+function atividadesTexto(a){
+  return listaDe(a).map(function(x){ return String(x).replace(/[.;]+$/, ""); }).join(". ") + (listaDe(a).length ? "." : "");
+}
+
 function cvBase(){
   var trabalhos = grupoPulado(ROTEIRO[1]) ? [] :
     (S.dados.trabalho || []).filter(function(it){ return it.cargo || it.empresa; });
   var estudos = (S.dados.estudo || []).filter(function(it){ return it.escolaridade && it.escolaridade !== "Não estudei"; });
   var cursos = grupoPulado(ROTEIRO[3]) ? [] :
     (S.dados.cursos || []).map(function(it){ return it.curso; }).filter(Boolean);
-  var cnh = pes("cnh");
   return {
     nome: pes("nome") || "Seu nome",
-    titulo: pes("objetivo") || "Profissional",
-    local: [pes("cidade"), pes("estado")].filter(Boolean).join(" · "),
+    titulo: maiusculas(pes("objetivo")) || "Profissional",
+    local: localCV(pes("cidade"), pes("estado")),
     idade: pes("idade"),
-    cnh: (cnh && cnh !== "Não tenho") ? cnh.replace(/^Sim,\s*/,"Carteira de motorista ") : "",
-    modalidade: pes("modalidade"),
+    cnh: CNH_CV[pes("cnh")] || "",
+    modalidade: MODALIDADE_CV[pes("modalidade")] || "",
     primeiroEmprego: trabalhos.length === 0,
     resumo:"",
     experiencia: trabalhos.map(function(it){
-      return {cargo:it.cargo || "", empresa:it.empresa || "", periodo:it.periodo || "",
+      return {cargo:maiusculas(it.cargo || ""), empresa:empresaCV(it.empresa || ""), periodo:it.periodo || "",
               atividades:it.atividades || "", maisSobre:it.maisSobre || ""};
     }),
     formacao: estudos.map(function(it){
-      return [it.escolaridade, it.instituicao, it.situacao].filter(Boolean).join(" · ");
+      return {nivel: maiusculas(it.escolaridade), curso: SUPERIOR.indexOf(it.escolaridade) >= 0 ? (it.curso || "") : "",
+              situacao: SITUACAO_CV[it.situacao] || "", instituicao: it.instituicao || ""};
     }),
-    cursos: cursos,
-    idiomas: (S.dados.idiomas && S.dados.idiomas[0] && S.dados.idiomas[0].idiomas) || "",
+    cursos: cursos.map(capitalizar),
+    idiomas: capitalizar((S.dados.idiomas && S.dados.idiomas[0] && S.dados.idiomas[0].idiomas) || ""),
     telefone: con("telefone"),
     email: con("email"),
     linkedin: con("temLinkedin") === "Tenho LinkedIn" ? con("linkedin") : ""
@@ -766,49 +1375,52 @@ function cvBase(){
 function renderCV(cv){
   var h = "";
   h += '<h2>' + esc(cv.nome) + '</h2>';
-  h += '<p class="cargo">' + esc(cv.titulo) + (cv.local ? " · " + esc(cv.local) : "") + '</p>';
-  if(cv.resumo) h += '<p>' + esc(cv.resumo) + '</p>';
+  if(cv.titulo) h += '<p class="cargo">' + esc(cv.titulo) + '</p>';
+  var contato = [cv.local, cv.idade ? cv.idade + " anos" : "", cv.telefone ? cv.telefone + " (WhatsApp)" : "", cv.email, cv.linkedin].filter(Boolean);
+  if(contato.length) h += '<p class="item-s">' + contato.map(esc).join(" &nbsp;|&nbsp; ") + '</p>';
+  var resumo = cv.resumo || (cv.primeiroEmprego ? "Em busca do primeiro emprego." : "");
+  if(resumo) h += '<h3>Resumo</h3><p>' + esc(resumo) + '</p>';
   if(cv.experiencia && cv.experiencia.length){
-    h += '<h3>Experiência</h3>';
+    h += '<h3>Experiência profissional</h3>';
     cv.experiencia.forEach(function(e){
-      h += '<p class="item-t">' + esc(e.cargo) + (e.empresa ? " — " + esc(e.empresa) : "") + '</p>';
-      if(e.periodo) h += '<p class="item-s">' + esc(e.periodo) + '</p>';
-      if(e.atividades) h += '<p>' + esc(e.atividades) + '</p>';
-      if(e.maisSobre) h += '<p>' + esc(e.maisSobre) + '</p>';
+      h += '<p class="item-t">' + esc(e.cargo) + (e.periodo ? ' <span class="item-s" style="float:right;font-weight:400">' + esc(e.periodo) + '</span>' : "") + '</p>';
+      if(e.empresa) h += '<p class="item-s"><i>' + esc(e.empresa) + '</i></p>';
+      var itens = listaDe(e.atividades).concat(e.maisSobre ? [capitalizar(e.maisSobre)] : []);
+      if(itens.length) h += '<ul>' + itens.map(function(x){ return '<li>' + esc(x) + '</li>'; }).join("") + '</ul>';
     });
-  }else if(cv.primeiroEmprego){
-    h += '<h3>Experiência</h3><p>Em busca do primeiro emprego.</p>';
   }
   if(cv.formacao && cv.formacao.length){
-    h += '<h3>Formação</h3><ul>' + cv.formacao.map(function(f){ return '<li>' + esc(f) + '</li>'; }).join("") + '</ul>';
+    h += '<h3>Formação</h3>';
+    cv.formacao.forEach(function(f){
+      if(typeof f === "string"){ h += '<p>' + esc(f) + '</p>'; return; }
+      h += '<p class="item-t">' + esc(linhaFormacao(f)) + '</p>';
+      if(f.instituicao) h += '<p class="item-s">' + esc(f.instituicao) + '</p>';
+    });
   }
   if(cv.cursos && cv.cursos.length){
     h += '<h3>Cursos</h3><ul>' + cv.cursos.map(function(c){ return '<li>' + esc(c) + '</li>'; }).join("") + '</ul>';
   }
   if(cv.idiomas) h += '<h3>Idiomas</h3><p>' + esc(cv.idiomas) + '</p>';
-  h += '<h3>Contato</h3>';
-  if(cv.telefone) h += '<p>Telefone e WhatsApp: ' + esc(cv.telefone) + '</p>';
-  if(cv.email) h += '<p>E-mail: ' + esc(cv.email) + '</p>';
-  if(cv.linkedin) h += '<p>LinkedIn: ' + esc(cv.linkedin) + '</p>';
-  var extras = [cv.cnh, cv.modalidade].filter(Boolean).join(" · ");
-  if(extras) h += '<p class="item-s">' + esc(extras) + '</p>';
+  var extras = [cv.cnh, cv.modalidade].filter(Boolean);
+  if(extras.length) h += '<h3>Informações adicionais</h3><ul>' + extras.map(function(x){ return '<li>' + esc(x) + '</li>'; }).join("") + '</ul>';
   return h;
 }
 
 function textoDoCV(cv){
   var p = [];
-  p.push(cv.nome + (cv.local ? ", de " + cv.local : "") + ".");
+  p.push(cv.nome + (cv.local ? ", de " + cv.local.replace(" – ", ", ") : "") + ".");
   if(cv.titulo) p.push("Procura trabalho como " + cv.titulo + ".");
   if(cv.resumo) p.push(cv.resumo);
   if(cv.experiencia.length){
     cv.experiencia.forEach(function(e){
-      p.push("Trabalhou como " + e.cargo + (e.empresa ? " na " + e.empresa : "") +
-             (e.periodo ? ", por " + e.periodo : "") + ". " + (e.atividades || ""));
+      p.push("Trabalhou como " + e.cargo + (e.empresa ? ", em " + e.empresa : "") +
+             (e.periodo ? ", por " + e.periodo : "") + ". " + atividadesTexto(e.atividades));
     });
   }else if(cv.primeiroEmprego){ p.push("Está em busca do primeiro emprego."); }
-  if(cv.formacao.length) p.push("Estudos: " + cv.formacao.join(". ") + ".");
+  if(cv.formacao.length) p.push("Estudos: " + cv.formacao.map(formacaoTexto).join(". ") + ".");
   if(cv.cursos.length) p.push("Cursos: " + cv.cursos.join(", ") + ".");
-  if(cv.cnh) p.push(cv.cnh + ".");
+  if(cv.idiomas) p.push("Idiomas: " + cv.idiomas + ".");
+  [cv.cnh, cv.modalidade].filter(Boolean).forEach(function(x){ p.push(x + "."); });
   if(cv.telefone) p.push("Telefone e WhatsApp: " + cv.telefone + ".");
   if(cv.email) p.push("E-mail: " + cv.email + ".");
   return p.join(" ");
@@ -828,7 +1440,7 @@ function blocosLeitura(){
           return [e.cargo, e.empresa ? "na " + e.empresa : "", e.periodo ? "por " + e.periodo : "", e.atividades].filter(Boolean).join(". ");
         }).join(". Também ")
       : "Em busca do primeiro emprego"},
-    {nome:"Estudos e Cursos", texto:[cv.formacao.join(". "), cv.cursos.join(", "), cv.idiomas].filter(Boolean).join(". ") || "Sem informações"},
+    {nome:"Estudos e Cursos", texto:[cv.formacao.map(formacaoTexto).join(". "), cv.cursos.join(", "), cv.idiomas].filter(Boolean).join(". ") || "Sem informações"},
     {nome:"Como Falar Comigo", texto:[cv.telefone ? "Telefone e WhatsApp " + cv.telefone : "",
       cv.email ? "E-mail " + cv.email : "", cv.linkedin ? "LinkedIn " + cv.linkedin : ""].filter(Boolean).join(". ") || "Sem contato informado"}
   ];
@@ -849,10 +1461,10 @@ function destacarBloco(k){
 }
 function lerBloco(k){
   if(!lendo) return;
-  if(k >= filaLeitura.length){ lendo = false; ir("t-tudocerto"); return; }
+  if(k >= filaLeitura.length){ lendo = false; ir("t-pronto"); return; }
   destacarBloco(k);
   var b = filaLeitura[k];
-  falar(b.nome + ". " + (b.texto || "Não informado"), function(){
+  falar([b.nome + ".", privado(b.texto || "Não informado")], function(){
     if(lendo) setTimeout(function(){ lerBloco(k + 1); }, 320);
   });
 }
@@ -860,9 +1472,6 @@ function comecarLeitura(volta){
   montarLeitura(); ir("t-lendo", volta); lendo = true;
   setTimeout(function(){ lerBloco(0); }, 420);
 }
-$("#btnLerCV").addEventListener("click", function(){ comecarLeitura(false); });
-$("#btnOuvirTudo").addEventListener("click", function(){ comecarLeitura(true); });
-$("#btnPararLeitura").addEventListener("click", function(){ lendo = false; calar(); ir("t-tudocerto"); });
 
 /* --- corrigir --- */
 function montarCorrigir(){
@@ -890,7 +1499,51 @@ document.addEventListener("click", function(e){
     }
   }
 });
-$("#btnMudarAlgo").addEventListener("click", function(){ calar(); montarCorrigir(); ir("t-corrigir"); });
+$("#btnMudarAlgo").addEventListener("click", function(){
+  calar();
+  $("#campoAjuste").value = "";
+  $("#avisoAjuste").hidden = true;
+  validarAjuste();
+  ir("t-ajuste");
+});
+$("#btnAjustePartes").addEventListener("click", function(){ calar(); montarCorrigir(); ir("t-corrigir"); });
+function avisoAjuste(msg){
+  $("#txtAvisoAjuste").textContent = msg;
+  $("#avisoAjuste").hidden = !msg;
+  if(msg) falar(msg);
+}
+function validarAjuste(){ $("#btnAjusteFazer").disabled = $("#campoAjuste").value.trim().length < 3; }
+$("#campoAjuste").addEventListener("input", validarAjuste);
+$("#btnAjusteFalar").addEventListener("click", function(){
+  calar();
+  $("#avisoAjuste").hidden = true;
+  if(!temMic()){ try{ $("#campoAjuste").focus(); }catch(e){} return; }
+  S.modoAjuste = true;
+  ir("t-ouvindo");
+  iniciarGravacao();
+});
+$("#btnAjusteFazer").addEventListener("click", function(){
+  var pedido = $("#campoAjuste").value.trim();
+  if(pedido.length < 3) return;
+  calar();
+  if(typeof window.ajustarCurriculoComIA !== "function"){ avisoAjuste("A mudança pela IA não está disponível agora. Toque em responder uma parte de novo."); return; }
+  ir("t-preparando");
+  var espera = new Promise(function(ok){ setTimeout(ok, 1200); });
+  Promise.all([window.ajustarCurriculoComIA(S.cv || cvBase(), pedido), espera]).then(function(res){
+    var r = res[0];
+    if(!r || !r.cv){
+      ir("t-ajuste");
+      avisoAjuste((r && r.motivo) || "Não consegui fazer a mudança agora. Tente de novo, ou toque em responder uma parte de novo.");
+      return;
+    }
+    S.cv = r.cv;
+    $("#previaCV").innerHTML = renderCV(S.cv);
+    ir("t-pronto");
+    var frase = r.resposta || "Fiz a mudança.";
+    $("#subPronto").textContent = frase + " Veja se ficou certo.";
+    falar([privado(frase), "Veja se ficou certo."]);
+  });
+});
 
 /* ============================================================
    12. ORGANIZAÇÃO DO CURRÍCULO
@@ -921,7 +1574,7 @@ function promptCV(){
         (e.maisSobre ? "; mais sobre esse trabalho: " + e.maisSobre : ""));
     });
   }else{ linhas.push("Experiência: nunca trabalhou, procura o primeiro emprego."); }
-  b.formacao.forEach(function(f, k){ linhas.push("Estudo " + (k+1) + ": " + f); });
+  b.formacao.forEach(function(f, k){ linhas.push("Estudo " + (k+1) + ": " + formacaoTexto(f)); });
   b.cursos.forEach(function(c, k){ linhas.push("Curso " + (k+1) + ": " + c); });
   if(b.idiomas) linhas.push("Idiomas: " + b.idiomas);
   linhas.push("Telefone: " + b.telefone);
@@ -948,7 +1601,7 @@ function solicitarOrganizacaoIA(instrucoes){
 
 function prepararCV(){
   var pronto = false;
-  var espera = new Promise(function(res){ setTimeout(res, 2600); });
+  var espera = new Promise(function(res){ setTimeout(res, 1500); });
   function finalizar(cv){
     if(pronto) return;
     pronto = true;
@@ -956,8 +1609,10 @@ function prepararCV(){
     espera.then(function(){
       $("#previaCV").innerHTML = renderCV(cv);
       ir("t-pronto");
-      soltarConfete();
-      setTimeout(function(){ falar("Seu currículo ficou pronto!"); }, 500);
+      $("#subPronto").textContent = cv.origemIA
+        ? "Melhorei o texto das suas respostas. Ouça ou leia e veja se está tudo certo."
+        : "Montei o currículo com as suas respostas. Ouça ou leia e veja se está tudo certo.";
+      setTimeout(function(){ falar("Seu currículo está pronto. Veja se está tudo certo. Se quiser, aperte o botão para ouvir."); }, 400);
     });
   }
   var base = cvBase();
@@ -966,26 +1621,28 @@ function prepararCV(){
       finalizar({
         nome: base.nome,
         titulo: (d && d.titulo) || base.titulo,
-        local: base.local,
+        local: (d && d.local) || base.local,
         idade: base.idade,
         cnh: base.cnh,
         modalidade: base.modalidade,
         primeiroEmprego: base.primeiroEmprego,
         resumo: (d && d.resumo) || "",
         experiencia: (d && Array.isArray(d.experiencia)) ? d.experiencia : base.experiencia,
-        formacao: (d && Array.isArray(d.formacao)) ? d.formacao.filter(Boolean) : base.formacao,
+        formacao: (d && Array.isArray(d.formacao)) ? d.formacao : base.formacao,
         cursos: (d && Array.isArray(d.cursos)) ? d.cursos.filter(Boolean) : base.cursos,
-        idiomas: base.idiomas, telefone: base.telefone, email: base.email, linkedin: base.linkedin
+        idiomas: (d && typeof d.idiomas === "string") ? d.idiomas : base.idiomas,
+        telefone: base.telefone, email: base.email, linkedin: base.linkedin,
+        origemIA: !(d && d.semIA)
       });
   }).catch(function(){ finalizar(base); });
 }
 
-$("#btnSimCerto").addEventListener("click", function(){
+function gerarCurriculo(){
   calar(); lendo = false;
   if(faltandoObrigatorios().length){ ir("t-faltando"); return; }
   ir("t-preparando");
   prepararCV();
-});
+}
 
 function soltarConfete(){
   if(reduzir) return;
@@ -1002,7 +1659,7 @@ function soltarConfete(){
   }
   setTimeout(function(){ cx.innerHTML = ""; }, 4200);
 }
-$("#btnOuvirCV").addEventListener("click", function(){ falar(textoDoCV(S.cv || cvBase())); });
+$("#btnOuvirCV").addEventListener("click", function(){ falar(privado(textoDoCV(S.cv || cvBase()))); });
 
 /* ============================================================
    13. PDF / WHATSAPP / IMPRIMIR
@@ -1013,56 +1670,92 @@ function gerarPDF(){
   var cv = S.cv || cvBase();
   if(!window.jspdf || !window.jspdf.jsPDF) return null;
   var doc = new window.jspdf.jsPDF({unit:"pt", format:"a4"});
-  var L = 56, y = 70, W = 595 - L * 2;
-  function linha(txt, tam, estilo, cor, espaco){
+  var L = 56, R = 595 - 56, W = R - L, TOPO = 64, FIM = 786, y = TOPO;
+  var COR = {texto:"#17242B", suave:"#54646E", destaque:"#17457E", secao:"#1E6B45", linha:"#D8CDB6"};
+
+  function fonte(tam, estilo, cor){
     doc.setFont("helvetica", estilo || "normal");
     doc.setFontSize(tam);
-    doc.setTextColor(cor || "#17242B");
-    var ls = doc.splitTextToSize(String(txt), W);
-    for(var k = 0; k < ls.length; k++){
-      if(y > 780){ doc.addPage(); y = 70; }
-      doc.text(ls[k], L, y);
-      y += tam + 4;
-    }
-    y += (espaco || 0);
+    doc.setTextColor(cor || COR.texto);
   }
-  function titulo(t){
-    y += 10;
-    linha(t.toUpperCase(), 10, "bold", "#1E6B45", 2);
-    doc.setDrawColor("#D8CDB6"); doc.setLineWidth(1);
-    doc.line(L, y - 8, L + W, y - 8);
-    y += 4;
-  }
-  linha(cv.nome, 22, "bold", "#17242B", 2);
-  linha([cv.titulo, cv.local].filter(Boolean).join("  ·  "), 11, "normal", "#17457E", 6);
-  if(cv.resumo) linha(cv.resumo, 11, "normal", "#17242B", 4);
-  if(cv.experiencia && cv.experiencia.length){
-    titulo("Experiência");
-    cv.experiencia.forEach(function(e){
-      linha([e.cargo, e.empresa].filter(Boolean).join(" — "), 12, "bold", "#17242B", 0);
-      if(e.periodo) linha(e.periodo, 10, "normal", "#54646E", 0);
-      if(e.atividades) linha(e.atividades, 11, "normal", "#17242B", 0);
-      if(e.maisSobre) linha(e.maisSobre, 11, "normal", "#17242B", 4);
+  function caber(alt){ if(y + alt > FIM){ doc.addPage(); y = TOPO; } }
+  function texto(txt, tam, estilo, cor){
+    fonte(tam, estilo, cor);
+    doc.splitTextToSize(String(txt), W).forEach(function(l){
+      caber(tam * 1.35); doc.text(l, L, y); y += tam * 1.35;
     });
-  }else if(cv.primeiroEmprego){
-    titulo("Experiência");
-    linha("Em busca do primeiro emprego.", 11, "normal", "#17242B", 0);
   }
+  function marcador(txt){
+    fonte(10.5, "normal", COR.texto);
+    var ls = doc.splitTextToSize(String(txt), W - 14);
+    caber(ls.length * 14.2);
+    doc.text("•", L + 2, y);
+    ls.forEach(function(l){ doc.text(l, L + 14, y); y += 14.2; });
+  }
+  function secao(t){
+    caber(48);                       // o título não fica sozinho no fim da página
+    y += 14;
+    fonte(10, "bold", COR.secao);
+    doc.text(t.toUpperCase(), L, y);
+    doc.setDrawColor(COR.linha); doc.setLineWidth(0.8);
+    doc.line(L, y + 5, R, y + 5);
+    y += 20;
+  }
+
+  // Cabeçalho: nome, vaga e contato
+  texto(cv.nome, 22, "bold");
+  y += 2;
+  if(cv.titulo) texto(cv.titulo, 12.5, "bold", COR.destaque);
+  var contato = [cv.local, cv.idade ? cv.idade + " anos" : "", cv.telefone ? cv.telefone + " (WhatsApp)" : "", cv.email]
+    .filter(Boolean).join("   |   ");
+  if(contato) texto(contato, 10, "normal", COR.suave);
+  if(cv.linkedin) texto(cv.linkedin, 10, "normal", COR.suave);
+  y += 4;
+  doc.setDrawColor(COR.destaque); doc.setLineWidth(1.5); doc.line(L, y, R, y);
+  y += 4;
+
+  var resumo = cv.resumo || (cv.primeiroEmprego ? "Em busca do primeiro emprego." : "");
+  if(resumo){ secao("Resumo"); texto(resumo, 10.5); }
+
+  if(cv.experiencia && cv.experiencia.length){
+    secao("Experiência profissional");
+    cv.experiencia.forEach(function(e, i){
+      if(i) y += 8;
+      caber(40);
+      fonte(10, "normal", COR.suave);
+      var wp = e.periodo ? doc.getTextWidth(e.periodo) : 0;
+      fonte(11.5, "bold", COR.texto);
+      if(doc.getTextWidth(e.cargo) + wp + 16 <= W){
+        doc.text(e.cargo, L, y);
+        if(e.periodo){ fonte(10, "normal", COR.suave); doc.text(e.periodo, R, y, {align:"right"}); }
+        y += 15;
+      }else{
+        texto(e.cargo, 11.5, "bold");
+        if(e.periodo) texto(e.periodo, 10, "normal", COR.suave);
+      }
+      if(e.empresa) texto(e.empresa, 10.5, "italic", COR.suave);
+      y += 2;
+      listaDe(e.atividades).forEach(marcador);
+      if(e.maisSobre) marcador(capitalizar(e.maisSobre));
+    });
+  }
+
   if(cv.formacao && cv.formacao.length){
-    titulo("Formação");
-    cv.formacao.forEach(function(f){ linha("• " + f, 11, "normal", "#17242B", 0); });
+    secao("Formação");
+    cv.formacao.forEach(function(f){
+      if(typeof f === "string"){ marcador(f); return; }
+      texto(linhaFormacao(f), 11, "bold");
+      if(f.instituicao) texto(f.instituicao, 10.5, "normal", COR.suave);
+      y += 4;
+    });
   }
-  if(cv.cursos && cv.cursos.length){
-    titulo("Cursos");
-    cv.cursos.forEach(function(c){ linha("• " + c, 11, "normal", "#17242B", 0); });
-  }
-  if(cv.idiomas){ titulo("Idiomas"); linha(cv.idiomas, 11, "normal", "#17242B", 0); }
-  titulo("Contato");
-  if(cv.telefone) linha("Telefone e WhatsApp: " + cv.telefone, 11, "normal", "#17242B", 0);
-  if(cv.email) linha("E-mail: " + cv.email, 11, "normal", "#17242B", 0);
-  if(cv.linkedin) linha("LinkedIn: " + cv.linkedin, 11, "normal", "#17242B", 0);
-  var extras = [cv.cnh, cv.modalidade].filter(Boolean).join("  ·  ");
-  if(extras) linha(extras, 10, "normal", "#54646E", 0);
+
+  if(cv.cursos && cv.cursos.length){ secao("Cursos"); cv.cursos.forEach(marcador); }
+  if(cv.idiomas){ secao("Idiomas"); texto(cv.idiomas, 10.5); }
+
+  var extras = [cv.cnh, cv.modalidade].filter(Boolean);
+  if(extras.length){ secao("Informações adicionais"); extras.forEach(marcador); }
+
   return doc;
 }
 
@@ -1117,6 +1810,13 @@ function abrirWhatsTexto(cv){
   else avisar("No protótipo, o WhatsApp recebe o currículo em texto. O envio do PDF em anexo entra na versão final.");
 }
 
+$("#btnApagarTudo").addEventListener("click", function(){
+  pararTudo(); apagarProgresso(); zerar();
+  $("#avisoEnvio").hidden = true;
+  ir("t-inicio", true);
+  falar("Pronto. As suas respostas foram apagadas deste aparelho.");
+});
+$("#btnAjusteOuvirCV").addEventListener("click", function(){ falar(privado(textoDoCV(S.cv || cvBase()))); });
 $("#btnRecomecar").addEventListener("click", function(){
   pararTudo(); zerar();
   $("#avisoEnvio").hidden = true;
@@ -1154,30 +1854,25 @@ function agendarRepeticao(){
     var extra = (S.repeticoes >= 2)
       ? " Quando estiver pronto, toque no botão vermelho e fale a sua resposta."
       : "";
-    falar("Vou repetir. " + p.texto + ". " + p.ajuda + extra, agendarRepeticao);
+    falar(["Vou repetir.", frasePergunta(p), extra], agendarRepeticao);
   }, 11000);
 }
 function cancelarRepeticao(){ clearTimeout(timerRepetir); }
 document.addEventListener("pointerdown", cancelarRepeticao);
 
 function aplicarModo(){
-  document.body.classList.toggle("modo-ajuda", S.modo === "ajuda");
-  $("#icoModo").innerHTML = (S.modo === "ajuda")
-    ? '<circle cx="9" cy="8" r="3.4"/><circle cx="17" cy="9" r="2.8"/><path d="M3 20a6 6 0 0 1 12 0M15.5 20a5 5 0 0 1 5.5-4.8"/>'
-    : '<circle cx="12" cy="8" r="4"/><path d="M4 21a8 8 0 0 1 16 0"/>';
-  $("#btnModo").setAttribute("title", S.modo === "ajuda" ? "Usando com ajuda de alguém" : "Usando sozinho");
+  document.body.classList.toggle("modo-ajuda", S.letraGrande);
+  $("#btnLetra").setAttribute("aria-pressed", S.letraGrande ? "true" : "false");
+  $("#btnLetra").setAttribute("title", S.letraGrande ? "Voltar a letra ao normal" : "Deixar a letra maior");
 }
-$("#btnModo").addEventListener("click", function(){
-  S.modo = (S.modo === "ajuda") ? "sozinho" : "ajuda";
+$("#btnLetra").addEventListener("click", function(){
+  S.letraGrande = !S.letraGrande;
   aplicarModo();
-  cancelarRepeticao();
-  falar(S.modo === "ajuda"
-    ? "Modo com ajuda. O botão de escrever fica em primeiro lugar e cada pergunta mostra um exemplo."
-    : "Modo sozinho. Eu falo tudo devagar e o botão de falar fica em primeiro lugar.");
-  if(S.tela === "t-pergunta") mostrarPergunta();
+  falar(S.letraGrande ? "Letra maior." : "Letra normal.");
 });
 
 function aoEntrar(id){
+  if(TELAS_SALVAR.indexOf(id) >= 0) salvarProgresso(id);
   clearInterval(timerFrases);
   clearTimeout(timerAuto);
   clearTimeout(timerRepetir);
@@ -1187,7 +1882,16 @@ function aoEntrar(id){
     case "t-inicio":
       falar("Fala Currículo. O jeito fácil de fazer o seu currículo usando só a sua voz. Aperte o botão azul para começar.");
       break;
+    case "t-retomar":
+      preaquecerVoz(frasesDoApp());
+      falar("Que bom te ver de novo. Quer continuar de onde parou? As suas respostas estão guardadas neste aparelho.");
+      break;
+    case "t-privacidade":
+      preaquecerVoz(frasesDoApp());
+      falar("Antes de começar, veja como cuidamos das suas informações. Esta voz que você está ouvindo é gerada por inteligência artificial. A sua voz e as respostas passam por serviços de inteligência artificial só para fazer o currículo. O seu telefone e o seu e-mail não vão para a IA. As respostas ficam guardadas só neste aparelho. Quando estiver pronto, aperte o botão azul.");
+      break;
     case "t-microfone":
+      preaquecerVoz(frasesDoApp());
       falar("Preciso ouvir a sua voz para te ajudar. Como eu escrevo o que você fala, preciso da sua permissão para usar o microfone do aparelho.");
       break;
     case "t-como":
@@ -1199,12 +1903,9 @@ function aoEntrar(id){
     case "t-pergunta":
       var p = perguntaAtual();
       if(p){
-        if(S.modo === "ajuda"){
-          falar(p.texto);
-        }else{
-          S.repeticoes = 0;
-          falar(p.texto + ". " + p.ajuda + (p.opcoes ? " " + p.opcoes.join(", ") + "." : ""), agendarRepeticao);
-        }
+        S.repeticoes = 0;
+        var antes = S.anuncio; S.anuncio = "";
+        falar([antes, frasePergunta(p)], agendarRepeticao);
       }
       break;
     case "t-ouvindo": break;
@@ -1232,11 +1933,11 @@ function aoEntrar(id){
       var n1 = 0;
       $("#fraseProc").textContent = FRASES[0];
       timerFrases = setInterval(function(){ n1 = (n1 + 1) % FRASES.length; $("#fraseProc").textContent = FRASES[n1]; }, 1100);
-      timerAuto = setTimeout(function(){ tratarResposta(S.rascunho); }, 2000);
       break;
     case "t-confirmar":
-      $("#citacao").textContent = "“" + (S.rascunho || "") + "”";
-      falar("Está certo? Eu entendi assim: " + S.rascunho);
+      var mostrar = S.rascunhoMostrar || S.rascunho || "";
+      $("#citacao").textContent = "“" + mostrar + "”";
+      falar(["Está certo? Eu entendi assim:", privado(mostrar)]);
       break;
     case "t-faltou":
       falar($("#txtFaltou").textContent + ". " + $("#subFaltou").textContent, function(){
@@ -1275,6 +1976,12 @@ function aoEntrar(id){
       timerFrases = setInterval(function(){ m = (m + 1) % FRP.length; $("#frasePrep").textContent = FRP[m]; }, 1700);
       falar("Preparando o seu currículo. Só um momento.");
       break;
+    case "t-ajuste":
+      $("#previaAjuste .cv").innerHTML = renderCV(S.cv || cvBase());
+      if($("#avisoAjuste").hidden && !$("#campoAjuste").value.trim())
+        falar("O que você quer mudar no currículo? Toque no botão vermelho e fale do seu jeito, ou escreva.");
+      validarAjuste();
+      break;
     case "t-enviar":
       falar("Como você quer receber o seu currículo?");
       break;
@@ -1302,6 +2009,7 @@ $("#btnFecharPainel").addEventListener("click", function(){ $("#painel").classLi
 $("#painel").addEventListener("click", function(e){ if(e.target === $("#painel")) $("#painel").classList.remove("aberto"); });
 
 function carregarExemplo(){
+  S.demo = true;
   S.dados.pessoais = [{nome:"José da Silva", cidade:"São Paulo", estado:"São Paulo (SP)",
     objetivo:"Ajudante de pedreiro", cnh:"Sim, de moto", modalidade:"Sim, no local de trabalho", idade:"42"}];
   S.portas.trabalho = "Sim, já trabalhei";
@@ -1327,7 +2035,7 @@ document.addEventListener("click", function(e){
   pararTudo();
   $("#painel").classList.remove("aberto");
 
-  var comDados = ["t-pronto","t-enviar","t-lendo","t-conferir","t-tudocerto","t-corrigir","t-progresso","t-faltando","t-mais"];
+  var comDados = ["t-pronto","t-enviar","t-corrigir","t-faltando","t-mais"];
   if(comDados.indexOf(id) >= 0 && !S.dados.pessoais[0].nome) carregarExemplo();
 
   if(id === "t-pronto" || id === "t-enviar"){
@@ -1349,19 +2057,27 @@ document.addEventListener("click", function(e){
     S.faltouEscrever = false;
   }
   if(id === "t-mais"){ S.pos = {g:1, inst:1, q:4}; mostrarMais(); return; }
-  if(id === "t-lendo"){ montarLeitura(); }
   if(id === "t-corrigir"){ montarCorrigir(); }
-  if(id === "t-progresso"){ montarProgresso(); }
   if(id === "t-faltando"){ montarFaltando(); }
   ir(id);
 });
 
+/* --- Funções usadas pelo ia.js --- */
+window.FalaCurriculoApp = {cvBase:cvBase, gerarPDF:gerarPDF, nomeArquivo:nomeArquivo, avisar:avisar, falar:falar,
+  validar:validar, emailFalado:emailFalado, listaDe:listaDe};
+
 /* ============================================================
    17. INÍCIO
    ============================================================ */
-if(!SR) S.micOk = false;
+if(!(navigator.mediaDevices && window.MediaRecorder)) S.micOk = false;
 aplicarModo();
-ir("t-inicio");
+salvoParaRetomar = lerProgresso();
+if(salvoParaRetomar){
+  $("#subRetomar").textContent = "As suas respostas de " + quandoFoi(salvoParaRetomar.quando) + ", estão guardadas neste aparelho.";
+  ir("t-retomar");
+}else{
+  ir("t-inicio");
+}
 
 var destravou = false;
 document.addEventListener("pointerdown", function(){
