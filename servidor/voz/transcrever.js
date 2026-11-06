@@ -7,9 +7,11 @@ const TIPOS = {
   "audio/mpeg": "mp3",
   "audio/ogg": "ogg",
   "audio/wav": "wav",
+  "audio/x-wav": "wav",
+  "audio/wave": "wav",
   "audio/x-m4a": "m4a"
 };
-export const MAX_AUDIO = 5 * 1024 * 1024; // 5 MB, bem mais que 90 s de voz
+export const MAX_AUDIO = 5 * 1024 * 1024; // 5 MB: 90 s de voz em WAV de 16 kHz (iPhone) dão 2,9 MB
 
 export async function transcreverAudio(bytes, tipoCompleto, pergunta, env) {
   if (!env.OPENAI_API_KEY) {
