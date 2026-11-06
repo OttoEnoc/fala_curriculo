@@ -274,9 +274,73 @@ var gravador = null, fluxoMic = null, pedacos = [], gravando = false, descartar 
 var inicioGravacao = 0, timerRelogio = null, timerLimite = null;
 var LIMITE_GRAVACAO = 90; // segundos
 var TIPOS_AUDIO = ["audio/webm;codecs=opus", "audio/webm", "audio/mp4", "audio/ogg;codecs=opus"];
+/*
+  iPhone e iPad: o MediaRecorder do Safari no iOS gerava áudio que a
+  transcrição não conseguia ler (a maioria das respostas caía em "não entendi",
+  e "3 anos" virava "3"). Lá o app grava em WAV, direto do microfone pelo
+  Web Audio, reduzido a 16 kHz e mono. É um formato simples, que a OpenAI lê
+  sempre. 90 s de voz dão cerca de 2,9 MB.
+*/
+var EH_IOS = /iPad|iPhone|iPod/.test(navigator.userAgent) ||
+  (navigator.platform === "MacIntel" && navigator.maxTouchPoints > 1);
+var GRAVAR_WAV = EH_IOS || !window.MediaRecorder;
+var ctxGrav = null;
+function contextoGravacao(){
+  var C = window.AudioContext || window.webkitAudioContext;
+  if(!C) return null;
+  if(!ctxGrav || ctxGrav.state === "closed"){ try{ ctxGrav = new C(); }catch(e){ ctxGrav = null; } }
+  // Precisa ser chamado no toque do botão, senão o iOS deixa o áudio parado.
+  if(ctxGrav && ctxGrav.state !== "running"){ try{ ctxGrav.resume(); }catch(e){} }
+  return ctxGrav;
+}
+// Grava em WAV: junta as amostras e, no fim, entrega um Blob audio/wav.
+function GravadorWav(fluxo, ctx){
+  var self = this, amostras = [], total = 0;
+  var fonte = ctx.createMediaStreamSource(fluxo);
+  var proc = ctx.createScriptProcessor(4096, 1, 1);
+  var mudo = ctx.createGain(); mudo.gain.value = 0; // não toca o microfone no alto-falante
+  proc.onaudioprocess = function(ev){
+    if(self.state !== "recording") return;
+    var d = ev.inputBuffer.getChannelData(0);
+    amostras.push(new Float32Array(d)); total += d.length;
+  };
+  fonte.connect(proc); proc.connect(mudo); mudo.connect(ctx.destination);
+  this.state = "inactive";
+  this.mimeType = "audio/wav";
+  this.start = function(){ self.state = "recording"; };
+  this.stop = function(){
+    if(self.state === "inactive") return;
+    self.state = "inactive";
+    try{ fonte.disconnect(); proc.disconnect(); mudo.disconnect(); }catch(e){}
+    var blob = wavDe(amostras, total, ctx.sampleRate);
+    amostras = [];
+    if(self.ondataavailable) self.ondataavailable({data: blob});
+    if(self.onstop) self.onstop();
+  };
+}
+function wavDe(partes, total, taxa){
+  var alvo = 16000, passo = taxa / alvo, n = Math.floor(total / passo);
+  var juntas = new Float32Array(total), pos = 0;
+  partes.forEach(function(p){ juntas.set(p, pos); pos += p.length; });
+  var buf = new ArrayBuffer(44 + n * 2), v = new DataView(buf);
+  function txt(o, t){ for(var i = 0; i < t.length; i++) v.setUint8(o + i, t.charCodeAt(i)); }
+  txt(0, "RIFF"); v.setUint32(4, 36 + n * 2, true); txt(8, "WAVE");
+  txt(12, "fmt "); v.setUint32(16, 16, true); v.setUint16(20, 1, true); v.setUint16(22, 1, true);
+  v.setUint32(24, alvo, true); v.setUint32(28, alvo * 2, true); v.setUint16(32, 2, true); v.setUint16(34, 16, true);
+  txt(36, "data"); v.setUint32(40, n * 2, true);
+  for(var i = 0; i < n; i++){
+    // média das amostras do trecho (reduz a taxa sem chiado)
+    var ini = Math.floor(i * passo), fim = Math.min(total, Math.floor((i + 1) * passo)), soma = 0, q = 0;
+    for(var k = ini; k < fim; k++){ soma += juntas[k]; q++; }
+    var x = Math.max(-1, Math.min(1, q ? soma / q : 0));
+    v.setInt16(44 + i * 2, x < 0 ? x * 0x8000 : x * 0x7FFF, true);
+  }
+  return new Blob([buf], {type: "audio/wav"});
+}
 
 function temMic(){
-  return !!(navigator.mediaDevices && navigator.mediaDevices.getUserMedia && window.MediaRecorder) && S.micOk !== false;
+  return !!(navigator.mediaDevices && navigator.mediaDevices.getUserMedia &&
+    (window.MediaRecorder || window.AudioContext || window.webkitAudioContext)) && S.micOk !== false;
 }
 function tipoAudio(){
   if(!window.MediaRecorder || !MediaRecorder.isTypeSupported) return "";
@@ -286,10 +350,11 @@ function tipoAudio(){
 // O microfone fica aberto durante o uso do app. Abrir de novo a cada resposta
 // atrasava o começo da gravação e cortava a primeira palavra ("São Paulo" -> "Paulo").
 function micAberto(){
-  return !!(fluxoMic && fluxoMic.getAudioTracks().some(function(t){ return t.readyState === "live"; }));
+  return !!(fluxoMic && fluxoMic.getAudioTracks().some(function(t){ return t.readyState === "live" && !t.muted; }));
 }
 function abrirMic(){
   if(micAberto()) return Promise.resolve(fluxoMic);
+  fecharMic();
   return navigator.mediaDevices.getUserMedia({audio:{echoCancellation:true, noiseSuppression:true, autoGainControl:true}})
     .then(function(f){ fluxoMic = f; return f; });
 }
@@ -325,10 +390,18 @@ function iniciarGravacao(){
   var el = $("#aoVivo"); if(el) el.textContent = "";
   $("#btnParar").hidden = true;
   $("#btnMicDeNovo").hidden = true;
+  var ctx = GRAVAR_WAV ? contextoGravacao() : null; // ainda dentro do toque
   abrirMic().then(function(fluxo){
     if(S.tela !== "t-ouvindo") return;
-    var tipo = tipoAudio();
-    try{ gravador = tipo ? new MediaRecorder(fluxo, {mimeType:tipo}) : new MediaRecorder(fluxo); }
+    var tipo = GRAVAR_WAV ? "audio/wav" : tipoAudio();
+    try{
+      if(GRAVAR_WAV){
+        if(!ctx) throw new Error("sem Web Audio");
+        gravador = new GravadorWav(fluxo, ctx);
+      }else{
+        gravador = tipo ? new MediaRecorder(fluxo, {mimeType:tipo}) : new MediaRecorder(fluxo);
+      }
+    }
     catch(e){ soltarMic(); ir("t-escrever"); return; }
     gravador.ondataavailable = function(ev){ if(ev.data && ev.data.size) pedacos.push(ev.data); };
     gravador.onstop = function(){
@@ -340,7 +413,7 @@ function iniciarGravacao(){
       if(segundos < 0.8 || blob.size < 1000){ falhaAudio(); return; }
       enviarAudio(blob);
     };
-    gravador.start(1000);
+    gravador.start();
     inicioGravacao = Date.now();
     gravando = true;
     document.body.classList.add("ouvindo");
@@ -1797,17 +1870,43 @@ $("#btnWhats").addEventListener("click", function(){
   var blob = doc ? doc.output("blob") : null;
   var arq = null;
   try{ if(blob) arq = new File([blob], nomeArquivo(), {type:"application/pdf"}); }catch(e){}
+  /*
+    Manda o ARQUIVO PDF pela tela de compartilhar do celular. Vai só o arquivo,
+    sem texto junto: no iPhone, quando ia texto e arquivo, o WhatsApp e o
+    "Copiar" ficavam só com o texto ("Segue o meu currículo.") e o PDF se perdia.
+    Um site não consegue abrir o WhatsApp já com um anexo; por isso a pessoa
+    escolhe o WhatsApp na lista que abre.
+  */
   if(arq && navigator.canShare && navigator.canShare({files:[arq]})){
-    navigator.share({files:[arq], title:"Meu currículo", text:"Segue o meu currículo."})
-      .then(function(){ falar("Currículo enviado."); })
-      .catch(function(){ abrirWhatsTexto(cv); });
-  }else{ abrirWhatsTexto(cv); }
+    var envio = navigator.share({files:[arq]}); // primeiro, ainda dentro do toque
+    avisar("Na lista que abriu, toque em WhatsApp e escolha para quem mandar. O currículo vai como arquivo PDF.");
+    falar("Na lista que abriu, toque em WhatsApp e escolha para quem mandar.");
+    envio
+      .then(function(){ avisar("Pronto. O currículo em PDF foi compartilhado."); })
+      .catch(function(err){
+        if(err && err.name === "AbortError"){ $("#avisoEnvio").hidden = true; return; } // a pessoa fechou a lista
+        guardarEAbrirWhats(blob, cv);
+      });
+  }else{ guardarEAbrirWhats(blob, cv); }
 });
-function abrirWhatsTexto(cv){
-  var texto = "*" + cv.nome + "*\n" + [cv.titulo, cv.local].filter(Boolean).join(" · ") + "\n\n" + textoDoCV(cv);
+// Sem compartilhar arquivo (computador e navegadores antigos): guarda o PDF
+// e abre o WhatsApp para a pessoa anexar o arquivo guardado.
+function guardarEAbrirWhats(blob, cv){
+  if(blob){
+    try{
+      var url = URL.createObjectURL(blob), a = document.createElement("a");
+      a.href = url; a.download = nomeArquivo();
+      document.body.appendChild(a); a.click(); a.remove();
+      setTimeout(function(){ URL.revokeObjectURL(url); }, 4000);
+    }catch(e){ blob = null; }
+  }
+  var texto = blob ? "Olá! Vou mandar o meu currículo em PDF logo abaixo."
+    : "*" + cv.nome + "*\n" + [cv.titulo, cv.local].filter(Boolean).join(" · ") + "\n\n" + textoDoCV(cv);
   var w = window.open("https://wa.me/?text=" + encodeURIComponent(texto), "_blank", "noopener");
-  if(!w) avisar("O navegador bloqueou a abertura do WhatsApp. Guarde o PDF no aparelho e envie pelo aplicativo.");
-  else avisar("No protótipo, o WhatsApp recebe o currículo em texto. O envio do PDF em anexo entra na versão final.");
+  if(!w) avisar(blob ? "O PDF foi guardado no aparelho. Abra o WhatsApp e anexe o arquivo " + nomeArquivo() + "."
+                     : "O navegador bloqueou o WhatsApp. Use \"Guardar no celular\" e envie o arquivo pelo aplicativo.");
+  else avisar(blob ? "O PDF foi guardado no aparelho. No WhatsApp, toque no clipe e anexe o arquivo " + nomeArquivo() + "."
+                   : "O WhatsApp recebeu o currículo em texto.");
 }
 
 $("#btnApagarTudo").addEventListener("click", function(){
